@@ -1,6 +1,12 @@
 #include "ofxSimpleApp.h"
-#include "DarkTheme.h"
+
 #include "Spectrum.h"
+#include "DarkTheme.h"
+
+#if ofxSA_GUI_THEME != ofxSA_GUI_THEME_DARK && ofxSA_GUI_THEME != ofxSA_GUI_THEME_LIGHT
+#	include ofxSA_GUI_THEME_FILE
+#endif
+
 #include "ofxSimpleAppUtils.h"
 //#include "ofGraphics.h" // for GL info stuff ?
 
@@ -93,11 +99,7 @@ void ofxSimpleApp::draw(){
 #ifdef ofxSA_SYPHON_OUTPUT
     publishSyphonTexture();
 #endif
-    if(bShowGui){
-        gui.begin();
-        drawGui();
-        gui.end();
-    }
+    renderGui();
 }
 
 //--------------------------------------------------------------
@@ -566,6 +568,15 @@ void ofxSimpleApp::drawGui(){
 }
 
 // ---
+void ofxSimpleApp::renderGui(){
+    if(bShowGui){
+        gui.begin();
+        drawGui();
+        gui.end();
+        gui.draw();
+    }
+}
+
 void ofxSimpleApp::toggleGui(){
     bShowGui = !bShowGui;
     updateCursorForGui();

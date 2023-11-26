@@ -33,6 +33,7 @@ class ofxSimpleApp : public ofBaseApp {
 		void draw() override;
 		virtual void drawGui();
 
+		void renderGui();
 		void toggleGui();
 		void updateCursorForGui();
 		//void drawLogger();
@@ -67,7 +68,7 @@ protected:
 		void loadImGuiTheme();
 
 		// Xml settings
-		ofxXmlSettings xml;
+		ofxXmlSettings xml; // Todo: Move away from this to use PugiXML (fast, multiplatform, great API). TinyXML is very slow.
 		bool loadXmlSettings();
 		bool saveXmlSettings();
 		virtual bool populateXmlSettings() = 0;

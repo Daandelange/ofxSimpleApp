@@ -1,6 +1,7 @@
 #pragma once
 
-#include "enigmatikConstants.h"
+#include "ofxSimpleAppConfig.h"
+#include "ofAppRunner.h"
 #include <iostream>
 #include "ofMath.h"
 //#include "ofGraphics.h"
@@ -10,6 +11,35 @@
 //void ofDrawBitMapStringHighlight(const std::string& _string, const ofRectangle& _rect){
 //    ofDrawBitmapStringHighlight(_string, _rect.getTopLeft(),)
 //}
+
+//template<class ofAppClass>
+//int ofxSimpleAppGenericMain();
+
+
+// You can use this main() function to quickly setup your app, or write your own one for more advanced usages.
+// Cannot separate definition and implementation because we cannot instantiate a template function womewhere else, and the ofApp class is unknown here. So we put the whole definition here and let users instantiate their classes on call.
+template<class ofAppClass>
+int ofxSimpleAppGenericMain(){
+
+	// Create window
+#if defined( TARGET_OPENGLES ) || defined( FORCE_GLES )
+	ofGLESWindowSettings settings;
+	settings.setGLESVersion(ofxSA_GLES_VERSION);
+#else
+	ofGLWindowSettings settings;
+	settings.setGLVersion(ofxSA_GL_VERSION_MAJ, ofxSA_GL_VERSION_MIN);
+#endif
+	settings.setSize(ofxSA_WINDOW_WIDTH, ofxSA_WINDOW_HEIGHT);
+	settings.title = ofxSA_APP_NAME;
+	auto window = ofCreateWindow(settings);
+
+	// Run App
+	auto app = std::make_shared<ofAppClass>();
+	ofRunApp(window, app);
+	ofRunMainLoop();
+
+	return 0;
+}
 
 template<typename ARRAY_T, typename VALUE_T>
 void syncHistogram(ARRAY_T(&_histogram)[ofxSA_FPS_HISTORY_SIZE], const VALUE_T& _newValue) {
