@@ -3,6 +3,8 @@
 #include "Spectrum.h"
 #include "DarkTheme.h"
 
+#include <string>
+
 #if ofxSA_GUI_THEME != ofxSA_GUI_THEME_DARK && ofxSA_GUI_THEME != ofxSA_GUI_THEME_LIGHT
 #	include ofxSA_GUI_THEME_FILE
 #endif
@@ -75,6 +77,11 @@ void ofxSimpleApp::setup(){
 	// Gui Instance
 	gui.setup(bUseDarkTheme?((ofxImGui::BaseTheme*)new DarkTheme()):((ofxImGui::BaseTheme*)new Spectrum()), false, ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad);
 
+#ifdef ofxSA_GUI_DEFAULT_HIDDEN
+    bShowGui = !ofxSA_GUI_DEFAULT_HIDDEN;
+#endif
+	updateCursorForGui();
+
 #ifdef ofxSA_SYPHON_OUTPUT
 	// Syphon setup
 	syphonServer.setName(ofxSA_APP_NAME);
@@ -115,11 +122,18 @@ void ofxSimpleApp::publishSyphonTexture(){
 void ofxSimpleApp::drawGui(){
     // Draw GUI
     if(bShowGui){
+        static const int curYear = std::stoi(ofGetTimestampString("%Y").c_str());
+
         // Menu BAR
         if( ImGui::BeginMainMenuBar() ){
             if(ImGui::BeginMenu( ofxSA_APP_NAME )){
                 // Info
-                ImGui::Text("Copyright 2015-%s " ofxSA_APP_AUTHOR, ofGetTimestampString("%Y").c_str());
+                if(ofxSA_APP_COPYRIGHT_START_YEAR != 0 && ofxSA_APP_COPYRIGHT_START_YEAR != curYear){
+                    ImGui::Text("Copyright %i-%i %s", ofxSA_APP_COPYRIGHT_START_YEAR, curYear, ofxSA_APP_AUTHOR);
+                }
+                else {
+                    ImGui::Text("Copyright %i %s", curYear, ofxSA_APP_AUTHOR);
+                }
                 ImGui::Text("Version %d.%d.%d", ofxSA_VERSION_MAJOR, ofxSA_VERSION_MINOR, ofxSA_VERSION_PATCH );
                 if(ImGui::MenuItem("About")){
                     bShowAboutWindow = !bShowAboutWindow;
@@ -217,7 +231,7 @@ void ofxSimpleApp::drawGui(){
                 ImGui::PlotHistogram("FPS", FPSHistory, ofxSA_FPS_HISTORY_SIZE, 0, NULL, 0.f, 70.f, ImVec2(0,ImGui::GetTextLineHeight()*2));
 
                 ImGui::Text("Uptime     : %.1f seconds", ofGetElapsedTimef() );
-                ImGui::Text("Resolution : %i x %i (%.0f)", ofGetWindowWidth(), ofGetWindowHeight() );
+                ImGui::Text("Resolution : %i x %i (ratio %.2f)", ofGetWindowWidth(), ofGetWindowHeight(), (((float)ofGetWindowWidth())/ofGetWindowHeight()) );
                 ImGui::SameLine();
                 static int newResolution[2] = {0, 0};
                 if(ImGui::Button("Change##resolution")){
@@ -291,7 +305,13 @@ void ofxSimpleApp::drawGui(){
                 // About Header
                 ImGui::Dummy(ImVec2(0,50));
                 ImGui::Text(  ofxSA_APP_NAME );
-                ImGui::Text("Copyright 2015-%s %s", ofGetTimestampString("%Y").c_str(), ofxSA_APP_AUTHOR);
+                if(ofxSA_APP_COPYRIGHT_START_YEAR != 0 && ofxSA_APP_COPYRIGHT_START_YEAR != curYear){
+                    ImGui::Text("Copyright %i-%i %s", ofxSA_APP_COPYRIGHT_START_YEAR, curYear, ofxSA_APP_AUTHOR);
+                }
+                else {
+                    ImGui::Text("Copyright %i %s", curYear, ofxSA_APP_AUTHOR);
+                }
+
                 ImGui::Text("Version %d.%d.%d", ofxSA_VERSION_MAJOR, ofxSA_VERSION_MINOR, ofxSA_VERSION_PATCH );
                 ImGui::Dummy(ImVec2(0,50));
                 //ImGui::Separator();
@@ -301,10 +321,12 @@ void ofxSimpleApp::drawGui(){
 
                     if( ImGui::BeginTabItem("About") ){
                         ImGui::Spacing();
-                        ImGui::TextWrapped("%s is an art project made by %s.\n\n", ofxSA_APP_NAME, ofxSA_APP_AUTHOR);
-                        ImGui::TextWrapped("How could organic decomposition of matter happen in virtual space ?\n\n");
-                        ImGui::TextWrapped("This interactive art installation takes the commonly used JPEG format and pushes it to its limits by constantly recompressing the image.");
-                        ImGui::TextWrapped("After some time, the inner mechanics of the JPEG algorithm start to reveal themselves, naturally generating new artefacts until there's not left much of the original image.\n\n");
+                        ImGui::TextWrapped("%s is a project made by %s.\n\n", ofxSA_APP_NAME, ofxSA_APP_AUTHOR);
+
+#ifdef ofxSA_APP_ABOUT
+                        ofxSA_APP_ABOUT
+#endif
+
 #ifdef ofxSA_APP_AUTHOR_WEBSITE
                         ImGui::TextWrapped("More information: %s", ofxSA_APP_AUTHOR_WEBSITE);
                         if(ImGui::IsItemClicked()){
@@ -680,25 +702,114 @@ void ofxSimpleApp::loadImGuiTheme(){
 
 // Xml settings from the ofxXml object
 bool ofxSimpleApp::loadXmlSettings(){
-    xml.clear(); // Ensure to rm garbage
-    if(xml.loadFile("settings.xml")){
-        if(retrieveXmlSettings())
-            ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Successfully loaded XML data from `settings.xml`.";
-        else
-            ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Failed loading settings from XML data parsed from `settings.xml`.";
-        return true;
+    bool ret = true;
+    // Check file existence
+    if( !ofFile(ofxSA_XML_FILENAME).exists() ){
+        // File doesn't exists, ignore
+        ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "The settings file doesn't exist yet, nothing to load.";
+        return true; // No error, but nothing loaded
     }
-    else {
-        ofLogError("ofxSimpleApp::loadXmlSettings()") << "Failed loading XML data from `settings.xml` !";
+
+    // Load string buffer
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+    pugi::xml_document doc;
+    pugi::xml_parse_result result = doc.load_file(ofToDataPath(ofxSA_XML_FILENAME, true).c_str());
+    bool loaded = false;
+    if(!result){
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Pugi error loading the document. Error=" << result.description();
+        loaded = false;
+    }
+    else loaded = true;
+#else
+    xml.clear(); // Ensure to rm garbage
+    bool loaded = xml.loadFile("settings.xml");
+#endif
+
+    if(!loaded) {
+        ofLogError("ofxSimpleApp::loadXmlSettings()") << "Failed loading XML contents from `settings.xml` !";
         return false;
     }
+
+    // Parse data
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+    // Load ofxSimpleApp section
+    pugi::xml_node ofxSimpleAppSettingsNode = doc.child("ofxSimpleAppSettings");
+    if(!ofxSimpleAppSettingsNode){
+        ret = false;
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `ofxSimpleAppSettings` section in `settings.xml` !";
+    }
+    else {
+        // Retrieve data
+        if(ofxSimpleApp::ofxSA_retrieveXmlSettings(ofxSimpleAppSettingsNode)){
+            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `ofxSimpleAppSettings` section from `settings.xml` !";
+        }
+        else {
+            ret = false;
+            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `ofxSimpleAppSettings` section in `settings.xml` !";
+        }
+    }
+
+    // Load custom section
+    pugi::xml_node customAppSettingsNode = doc.child(ofxSA_APP_NAME);
+    if(!customAppSettingsNode){
+        ret = false;
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `" << ofxSA_APP_NAME << "` section in `settings.xml` !";
+    }
+    else {
+        if(retrieveXmlSettings(customAppSettingsNode)){
+            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `" << ofxSA_APP_NAME << "` section from `settings.xml` !";
+        }
+        else {
+            ret = false;
+            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `" << ofxSA_APP_NAME << "` section in `settings.xml` !";
+        }
+    }
+
+#else
+//    if(!SimpleApp::retrieveXmlSettings()){
+
+//    }
+#endif
+
+    if(ret){
+        ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Successfully loaded XML data from `settings.xml`.";
+    }
+    else {
+        ofLogError("ofxSimpleApp::loadXmlSettings()") << "Failed parsing settings from XML data loaded from `settings.xml`.";
+    }
+
+    return ret;
 }
 
-// Populate the ofxXmlSettings object before saving.
+// Saving function
+//#include <typeinfo>
 bool ofxSimpleApp::saveXmlSettings(){
+    bool success = true;
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+    pugi::xml_document doc;
+    pugi::xml_node ofxSimpleAppSettingsNode = doc.append_child("ofxSimpleAppSettings");
+    success *= ofxSimpleApp::ofxSA_populateXmlSettings(ofxSimpleAppSettingsNode);
+//    ofxSimpleAppSettingsNode.append_attribute("version_maj").set_value(ofxSA_VERSION_MAJOR);
+//    ofxSimpleAppSettingsNode.append_attribute("version_min").set_value(ofxSA_VERSION_MINOR);
+//    ofxSimpleAppSettingsNode.append_attribute("version_patch").set_value(ofxSA_VERSION_PATCH);
+//    ofxSimpleAppSettingsNode.append_child("app_name").append_child(pugi::node_pcdata).set_value(ofxSA_APP_NAME);
+
+    pugi::xml_node customAppSettingsNode = doc.append_child(ofxSA_APP_NAME);
+    success *= populateXmlSettings(customAppSettingsNode);
+
+    if(success){
+        // Save !
+        doc.save_file(ofToDataPath(ofxSA_XML_FILENAME).c_str());
+    }
+    else {
+        // todo: failed populating
+    }
+#else
     xml.clear();
     populateXmlSettings();
-    if(xml.saveFile("settings.xml")){
+    success = xml.saveFile(ofxSA_XML_FILENAME);
+#endif
+    if(success){
         ofLogNotice("ofxSimpleApp::saveXmlSettings()") << "Saved settings to `settings.xml` !";
         return true;
     }
@@ -706,4 +817,54 @@ bool ofxSimpleApp::saveXmlSettings(){
         ofLogError("ofxSimpleApp::saveXmlSettings()") << "Failed saving settings to `settings.xml` !";
         return false;
     }
+}
+
+// Populate XML for saving
+bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
+    // Version
+    _node.append_attribute("version_maj").set_value(ofxSA_VERSION_MAJOR);
+    _node.append_attribute("version_min").set_value(ofxSA_VERSION_MINOR);
+    _node.append_attribute("version_patch").set_value(ofxSA_VERSION_PATCH);
+
+    // App name, just for info
+    _node.append_child("app_name").append_child(pugi::node_pcdata).set_value(ofxSA_APP_NAME);
+
+    // Theme
+    // todo: support custom themes
+    _node.append_child("gui_theme").append_child(pugi::node_pcdata).set_value(std::to_string(bUseDarkTheme?ofxSA_GUI_THEME_DARK:ofxSA_GUI_THEME_LIGHT).c_str());
+
+    // todo: targetFPS, resolution, fullscreen, etc.
+
+    // Done
+    return true;
+}
+
+// Retrieve data from XML for saving
+bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
+    unsigned int vMaj = _node.attribute("version_maj").as_uint();
+    unsigned int vMin = _node.attribute("version_min").as_uint();
+    unsigned int vPatch = _node.attribute("version_patch").as_uint();
+    const char* appName = _node.child("app_name").child_value();
+
+    // Check app name
+    if( strcmp(appName, ofxSA_APP_NAME) != 0 ){
+        ofLogWarning("ofxSimpleApp::ofxSA_retrieveXmlSettings") << "This save file was not made for the same ofxSimpleApp ("<< appName <<"instead of "<< ofxSA_APP_NAME <<"). Proceeding anyways but proceed with caution !";
+        // Todo: increment save file, load new one not to overwrite old version ?
+    }
+
+    // Check app version
+    if(ofxSA_VERSION_MAJOR != vMaj || ofxSA_VERSION_MINOR != vMin || ofxSA_VERSION_PATCH != vPatch){
+        ofLogWarning("ofxSimpleApp::ofxSA_retrieveXmlSettings") << "Loaded XML file was made using an older version ("<<vMaj<<"."<<vMin<<"."<<vPatch<<"). Runtime version = "<<ofxSA_VERSION_MAJOR<<"."<<ofxSA_VERSION_MINOR<<"."<<ofxSA_VERSION_PATCH<<".";
+        // Todo: increment save file, load new one not to overwrite old version ?
+    }
+
+    // Grab theme
+    const char* theme = _node.child("gui_theme").child_value();
+    if(theme && theme[0] != '\0'){
+        if(ofxSA_GUI_THEME_DARK == std::stoi(theme)) bUseDarkTheme = true;
+        else if(ofxSA_GUI_THEME_LIGHT == std::stoi(theme)) bUseDarkTheme = false;
+        //else if(ofxSA_GUI_THEME_CUSTOM = theme) bUseDarkTheme = true;
+    }
+
+    return true;
 }

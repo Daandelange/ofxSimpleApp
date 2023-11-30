@@ -6,7 +6,11 @@
 #include "ofxImGui.h"
 #include "ofxImGuiLoggerChannel.h"
 
-#include "ofxXmlSettings.h"
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+#	include "pugixml.hpp"
+#else
+#	include "ofxXmlSettings.h"
+#endif
 
 #ifdef ofxSA_SYPHON_OUTPUT
 #include "ofxSyphon.h"
@@ -68,11 +72,20 @@ protected:
 		void loadImGuiTheme();
 
 		// Xml settings
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+		//pugi::xml_document xml;
+		virtual bool populateXmlSettings(pugi::xml_node& _node)=0;
+		virtual bool retrieveXmlSettings(pugi::xml_node& _node)=0;
+		bool ofxSA_populateXmlSettings(pugi::xml_node& _node);
+		bool ofxSA_retrieveXmlSettings(pugi::xml_node& _node);
+#else
 		ofxXmlSettings xml; // Todo: Move away from this to use PugiXML (fast, multiplatform, great API). TinyXML is very slow.
-		bool loadXmlSettings();
-		bool saveXmlSettings();
 		virtual bool populateXmlSettings() = 0;
 		virtual bool retrieveXmlSettings() = 0;
+#endif
+		bool loadXmlSettings();
+		bool saveXmlSettings();
+
 
 		// Parameters
 

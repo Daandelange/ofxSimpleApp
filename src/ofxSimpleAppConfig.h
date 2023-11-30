@@ -6,7 +6,9 @@
 #ifdef ofxSA_CONFIG_HEADER_FILE
 //#include "vectorMapperConstants.h"
 #   include ofxSA_CONFIG_HEADER_FILE
-#   pragma message "ofxSA : Loading custom config file !"
+#   pragma message "ofxSA : Loading & sanitising custom config file !"
+#else
+#   pragma message "ofxSA : Loading defaults !"
 #endif
 
 //// Enables debugging
@@ -24,6 +26,12 @@
 #endif
 #ifndef ofxSA_APP_AUTHOR_WEBSITE
 #   define ofxSA_APP_AUTHOR_WEBSITE "https://github.com/Daandelange/ofxSimpleApp"
+#endif
+#ifndef ofxSA_APP_COPYRIGHT_START_YEAR
+#   define ofxSA_APP_COPYRIGHT_START_YEAR 0
+#endif
+#ifndef ofxSA_APP_ABOUT
+#   define ofxSA_APP_ABOUT ImGui::TextWrapped("...\n\n");
 #endif
 
 // Version Management
@@ -74,6 +82,15 @@
 
 //#define ofxSA_ENABLE_PROFILING
 
+// XML
+// One has to be chosen, use ofxXmlSettings by default (tinyXML)
+#if !defined(ofxSA_XML_ENGINE_TINYXML) && !defined(ofxSA_XML_ENGINE_PUGIXML)
+#   define ofxSA_XML_ENGINE_TINYXML
+#endif
+#ifndef ofxSA_XML_FILENAME
+#   define ofxSA_XML_FILENAME "Settings.xml"
+#endif
+
 // - - - - -
 // COSMETICS
 
@@ -99,6 +116,11 @@
 #   else
 #       define ofxSA_GUI_THEME_DEFAULT ofxSA_GUI_THEME_DARK
 #   endif
+#endif
+
+// Default gui state
+#ifndef ofxSA_GUI_DEFAULT_HIDDEN
+#   define ofxSA_GUI_DEFAULT_HIDDEN false
 #endif
 
 
