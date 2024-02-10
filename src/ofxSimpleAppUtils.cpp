@@ -34,17 +34,28 @@ float smoothstep(TYPE edge0, TYPE edge1, TYPE x){
 // From imgui_demo.cpp
 namespace ImGuiEx {
     // Help marker
-    void ShowHelpMarker(const char* desc){
+    bool BeginHelpMarker(const char* marker = "[?]"){
         ImGui::SameLine();
-        ImGui::TextDisabled("[?]");
-        if (ImGui::IsItemHovered())
-        {
-            ImGui::BeginTooltip();
-            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
-            ImGui::TextUnformatted(desc);
-            ImGui::PopTextWrapPos();
-            ImGui::EndTooltip();
+        ImGui::TextDisabled("%s", marker);
+        if (ImGui::IsItemHovered()) {
+            if (ImGui::BeginTooltip()) {
+                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+                return true;
+            }
         }
+        return false;
+    }
+
+    void ShowHelpMarker(const char* desc){
+        if (BeginHelpMarker()){
+            ImGui::TextUnformatted(desc);
+            EndHelpMarker();
+        }
+    }
+
+    void EndHelpMarker(){
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
     }
 
     template<typename LoggerBuffer>

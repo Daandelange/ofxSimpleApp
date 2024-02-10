@@ -13,7 +13,15 @@
 #endif
 
 #ifdef ofxSA_SYPHON_OUTPUT
-#include "ofxSyphon.h"
+#	include "ofxSyphon.h"
+#endif
+
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+#	include "ofxSimpleAppCanvas.h"
+#endif
+
+#ifdef ofxSA_TIMELINE_ENABLE
+#include "ofxSimpleAppTimeline.h"
 #endif
 
 //enum AppState {
@@ -50,9 +58,9 @@ class ofxSimpleApp : public ofBaseApp {
 //		void mouseReleased(int x, int y, int button);
 //		void mouseEntered(int x, int y);
 //		void mouseExited(int x, int y);
-//		void windowResized(int w, int h);
 //		void dragEvent(ofDragInfo dragInfo);
 //		void gotMessage(ofMessage msg);
+		void windowResized(int w, int h) override;
 
 		//--------------------------------------------------------------
 		virtual void audioRequested(float * output, int bufferSize, int nChannels) override;
@@ -64,12 +72,37 @@ protected:
 		bool bShowAboutWindow = false;
 		bool bDebugGlobal = false;
 		bool bShowImGuiMetrics = false;
-		bool bShowImGuiDebugWindow = false;
+		bool bShowImGuiDemo = false;
+		bool bShowImGuiDebugWindow = false; // todo: rename bShowImGuiDebugLog
 		float FPSHistory[ofxSA_FPS_HISTORY_SIZE];
+		static const int curYear;
 
 		static ofxImGui::BaseTheme* imguiTheme;
 		static bool bUseDarkTheme;
 		void loadImGuiTheme();
+		void ImGuiDrawMenuBar();
+		void ImGuiDrawAboutWindow();
+#if ofxSA_UI_DOCKING_ENABLE_DOCKSPACES == 1
+		void ImGuiDrawDockingSpace();
+		ofRectangle dockingViewport;
+		void onImguiViewportChange(){
+			// Update canvas
+			ofRectangle vp = getViewport();
+			canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
+		}
+#endif
+		virtual void onViewportChange(){
+			// Update canvas
+			//ofRectangle vp = getViewport();
+			//canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
+		}
+
+		virtual void onContentResize(unsigned int _width, unsigned int _height){
+
+		}
+		//void updateViewport();
+		ofRectangle getViewport() const;
+		//ofRectangle curViewport;
 
 		// Xml settings
 #ifdef ofxSA_XML_ENGINE_PUGIXML
@@ -111,4 +144,20 @@ protected:
 		virtual void publishSyphonTexture();
 #endif
 
+		// Output canvas
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+	public:
+		unsigned int getCanvasResolutionX() const;
+		unsigned int getCanvasResolutiony() const;
+		void onCanvasViewportResize(ofRectangle& args);
+		void onCanvasContentResize(ContentResizeArgs& _args);
+	protected:
+		ofxSimpleAppCanvas canvas;
+#endif
+
+#ifdef ofxSA_TIMELINE_ENABLE
+	protected:
+		ofxSATimeline timeline;
+		bool bShowTimeClockWindow = true;
+#endif
 };

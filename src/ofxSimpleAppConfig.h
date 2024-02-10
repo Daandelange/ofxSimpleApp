@@ -137,6 +137,56 @@
 #endif
 // todo: Gui scale for DPI ?
 
+// ImGui Options
+#ifndef ofxSA_UI_DOCKING_ENABLE
+#   define ofxSA_UI_DOCKING_ENABLE 1 // Enabled by default
+#endif
+#if ofxSA_UI_DOCKING_ENABLE == 1
+#   define ofxSA_UI_IMGUI_CONFIGFLAGS_docking ImGuiConfigFlags_DockingEnable
+#else
+#   define ofxSA_UI_IMGUI_CONFIGFLAGS_docking ImGuiConfigFlags_None
+#endif
+
+#ifndef ofxSA_UI_VIEWPORTS_ENABLE
+#   define ofxSA_UI_VIEWPORTS_ENABLE 0
+#endif
+#if ofxSA_UI_VIEWPORTS_ENABLE == 1
+#   define ofxSA_UI_IMGUI_CONFIGFLAGS_vp ImGuiConfigFlags_ViewportsEnable
+#else
+#   define ofxSA_UI_IMGUI_CONFIGFLAGS_vp ImGuiConfigFlags_None
+#endif
+
+// Set default restore state (creates savefile in data folder)
+#ifndef ofxSA_UI_RESTORE_STATE
+#   ifdef ofxSA_UI_DOCKING_ENABLE
+#       define ofxSA_UI_RESTORE_STATE 1
+#   else
+#       define ofxSA_UI_RESTORE_STATE 0
+#   endif
+#endif
+
+// Build default imgui flags from options
+#define ofxSA_UI_IMGUI_CONFIGFLAGS_default_on ImGuiConfigFlags_NavEnableGamepad
+#ifndef ofxSA_UI_IMGUI_CONFIGFLAGS
+#   define ofxSA_UI_IMGUI_CONFIGFLAGS ofxSA_UI_IMGUI_CONFIGFLAGS_default_on | ofxSA_UI_IMGUI_CONFIGFLAGS_docking | ofxSA_UI_IMGUI_CONFIGFLAGS_vp
+#endif
+
+// Enable docking space
+// Force-disable when no docking
+#if ofxSA_UI_DOCKING_ENABLE == 0
+#   ifdef ofxSA_UI_DOCKING_ENABLE_DOCKSPACES
+#       undef ofxSA_UI_DOCKING_ENABLE_DOCKSPACES
+#   endif
+// Defaults to docking enabled setting
+#elif !defined(ofxSA_UI_DOCKING_ENABLE_DOCKSPACES)
+#   define ofxSA_UI_DOCKING_ENABLE_DOCKSPACES ofxSA_UI_DOCKING_ENABLE
+#endif
+
+// cleanup temps
+//#undef oofxSA_UI_IMGUI_CONFIGFLAGS_docking
+//#undef ofxSA_UI_IMGUI_CONFIGFLAGS_vp
+//#undef ofxSA_UI_IMGUI_CONFIGFLAGS_default_on
+
 // - - - - -
 // Optional opt-ins
 //#define ofxSA_SYPHON_OUTPUT
@@ -147,6 +197,25 @@
     #ifndef TARGET_OSX
         #undef ofxSA_SYPHON_OUTPUT
     #endif
+#endif
+
+// Sanitize Canvas setting (force-disable on unsupported platforms)
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+#   ifndef ofxSA_CANVAS_OUTPUT_DEFAULT_WIDTH
+#       define ofxSA_CANVAS_OUTPUT_DEFAULT_WIDTH 1920
+#   endif
+#   ifndef ofxSA_CANVAS_OUTPUT_DEFAULT_HEIGHT
+#       define ofxSA_CANVAS_OUTPUT_DEFAULT_HEIGHT 1080
+#   endif
+#endif
+
+// Timeline settings
+// tmp enable by default
+#ifdef ofxSA_TIMELINE_ENABLE
+//  Enable autostart by default
+#   ifndef ofxSA_TIMELINE_AUTOSTART
+#       define ofxSA_TIMELINE_AUTOSTART true
+#   endif
 #endif
 
 // Todo :

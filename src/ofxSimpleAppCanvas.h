@@ -1,0 +1,87 @@
+#pragma once
+
+//include "ofMain.h"
+#include "ofxSimpleAppConfig.h"
+#include "ofFbo.h"
+#include "ofRectangle.h"
+#include "ofAppRunner.h"
+#include "ofGraphics.h"
+#include "imgui.h"
+#include "ImHelpers.h" // For ImVec & glm glue
+
+// An FBO with  repaint support ?
+
+
+#define ofxSA_Canvas_AllowedBorder 20.f
+
+enum CanvasDrawMode : int {
+    CanvasDrawMode_Manual = 0,
+    CanvasDrawMode_AutoCover = 1,
+    CanvasDrawMode_AutoContain = 2,
+};
+
+struct ContentResizeArgs : public ofEventArgs {
+    unsigned int width = 0;
+    unsigned int height = 0;
+    float scale = 1.f;
+    ContentResizeArgs(unsigned int _width, unsigned int _height, float _scale);
+};
+
+
+
+class ofxSimpleAppCanvas {
+    public:
+        ofxSimpleAppCanvas(int _width=ofGetWidth(), int _height=ofGetHeight());
+
+        void setCanvasSize(unsigned int _width, unsigned int _height, float _scale=1.f);
+
+        // (Unscaled)
+        glm::vec2 getCanvasSize() const;
+        unsigned int getCanvasWidth() const;
+        unsigned int getCanvasHeight() const;
+        glm::vec2 getCanvasResolution() const;
+        unsigned int getCanvasResolutionX() const;
+        unsigned int getCanvasResolutionY() const;
+
+        // Returns current zoom level (in UI)
+        float getViewZoom() const;
+
+        // Renderer scale (aka antialiasing)
+        float getScale() const;
+
+        glm::vec2 getViewTranslation() const;
+
+        void setScreenRect(unsigned int _width=ofGetWidth(), unsigned int _height=ofGetHeight(), unsigned int _x=0, unsigned int _y=0);
+
+        ofRectangle getScreenRect() const;
+        ofRectangle getContentProjection() const;
+
+        void draw();
+        void drawGuiSettings();
+        void drawGuiViewportHUD();
+
+        bool bDrawScreenRect = true;//false;
+        CanvasDrawMode contentDrawMode = CanvasDrawMode_Manual;
+
+    private:
+        unsigned int width = 0;
+        unsigned int height = 0;
+        float scale = 1.f; // Antialiasing control
+        bool bFlagDirty = false;
+        bool bFlagRepaint = false;
+
+
+        // Viewzone controls
+        float viewZoom = 1.f;
+        glm::vec2 viewTranslation = {0,0};
+
+        ofFbo fbo;
+        ofRectangle screenRect; // draw area
+
+        // Event emitters for listening to updates
+    public:
+        ofEvent<ContentResizeArgs> onContentResize;
+        ofEvent<ofRectangle> onViewportResize;
+};
+
+

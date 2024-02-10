@@ -85,6 +85,8 @@ TYPE smoothstep(TYPE edge0, TYPE edge1, TYPE x);
 namespace ImGuiEx {
 
     void ShowHelpMarker(const char* desc);
+    bool BeginHelpMarker(const char* marker); // Call EndHelpMarker() if true, after submitting toltip content.
+    void EndHelpMarker();
 
     template<typename LoggerBuffer=ImGuiTextBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& );
