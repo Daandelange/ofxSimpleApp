@@ -5,7 +5,8 @@
 // Always load user config first
 #ifdef ofxSA_CONFIG_HEADER_FILE
 //#include "vectorMapperConstants.h"
-#   include ofxSA_CONFIG_HEADER_FILE
+//#   include ofxSA_CONFIG_HEADER_FILE // <-- only works using clang !
+#   include "vectorMapperConstants.h" // tmp!
 #   pragma message "ofxSA : Loading & sanitising custom config file !"
 #else
 #   pragma message "ofxSA : Loading defaults !"
