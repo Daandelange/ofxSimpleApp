@@ -164,6 +164,7 @@ protected:
 	protected:
 		ofxSATimeline timeline;
 		bool bShowTimeClockWindow = true;
+		virtual void ImGuiDrawTimeline();
 #endif
 
 #ifdef ofxSA_TEXRECORDER_ENABLE

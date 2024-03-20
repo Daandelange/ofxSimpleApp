@@ -87,6 +87,11 @@ namespace ImGuiEx {
     void ShowHelpMarker(const char* desc);
     bool BeginHelpMarker(const char* marker); // Call EndHelpMarker() if true, after submitting toltip content.
     void EndHelpMarker();
+    bool ButtonActive(const char* id, bool isActive = false);
+
+    bool BeginToolBar(bool verticalLayout=true);
+    void EndToolBar();
+    bool ToolBarItem(const char* id, bool isActive=false);
 
     template<typename LoggerBuffer=ImGuiTextBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& );

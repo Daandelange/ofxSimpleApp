@@ -252,9 +252,7 @@ void ofxSimpleApp::drawGui(){
 #endif
 
 #ifdef ofxSA_TIMELINE_ENABLE
-        if(bShowTimeClockWindow){
-            timeline.drawImGuiTimelineWindow(&bShowTimeClockWindow);
-        }
+        ImGuiDrawTimeline();
 #endif
 
         // About
@@ -975,6 +973,14 @@ void ofxSimpleApp::ImGuiDrawDockingSpace(){
 //            ofSetRectMode(OF_RECTMODE_CORNER);
 //            ofPopStyle();
         }
+    }
+}
+#endif
+
+#ifdef ofxSA_TIMELINE_ENABLE
+void ofxSimpleApp::ImGuiDrawTimeline(){
+    if(bShowTimeClockWindow){
+        timeline.drawImGuiTimelineWindow(&bShowTimeClockWindow);
     }
 }
 #endif

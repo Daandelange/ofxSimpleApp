@@ -4,6 +4,8 @@
 #include "glm/ext.hpp"
 #include "glm/gtx/string_cast.hpp"
 
+#include "imgui_internal.h"
+
 //void ofDrawBitMapStringHighlight(const std::string& _string, const ofRectangle& _rect){
 //    ofDrawBitmapStringHighlight(_string, _rect.getTopLeft(),)
 //}
@@ -56,6 +58,75 @@ namespace ImGuiEx {
     void EndHelpMarker(){
         ImGui::PopTextWrapPos();
         ImGui::EndTooltip();
+    }
+
+    bool ButtonActive(const char* id, bool isActive){
+        if(isActive){
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_TabActive));
+        }
+        bool ret = ImGui::Button(id);
+        if(isActive){
+            ImGui::PopStyleColor();
+        }
+        return ret;
+    }
+
+    // Toolbar functions
+
+    // Mix of ImGui::BeginMainMenuBar() and XXX
+    bool BeginToolBar(bool verticalLayout){
+        ImGuiContext& g = *GImGui;
+        ImGuiViewportP* viewport = (ImGuiViewportP*)(void*)ImGui::GetMainViewport();
+
+        // Notify of viewport change so GetFrameHeight() can be accurate in case of DPI change
+        ImGui::SetCurrentViewport(NULL, viewport);
+
+        ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;// | ImGuiWindowFlags_MenuBar;
+
+        float height = ImGui::GetFrameHeight() + (verticalLayout?g.Style.WindowPadding.y:g.Style.WindowPadding.x);//ImMax(g.Style.DisplaySafeAreaPadding.y - g.Style.FramePadding.y, 0.0f)*2;
+        bool is_open = ImGui::BeginViewportSideBar("##MainToolBar", viewport, verticalLayout?ImGuiDir_Left:ImGuiDir_Up, height, window_flags);
+
+
+        if (is_open)
+            ImGui::Begin("##MainToolBar");
+        else
+            ImGui::End();
+
+        return is_open;
+    }
+    void EndToolBar(){
+        ImGui::End();
+
+
+        ImGui::End();
+    }
+    bool ToolBarItem(const char* id, bool isActive){
+        static int tmp;
+        std::string btnId = id;
+        btnId = btnId.substr(0,1);
+        btnId.append("##toolbar-item-");
+        btnId.append(id);
+        ImVec2 pos = ImGui::GetCursorScreenPos();
+
+        if(isActive){
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_TabActive));
+        }
+
+        bool ret = false;
+        if(ImGui::Button(btnId.c_str()))
+            ret=true;
+
+        if(ret) std::cout << "ret = " << (ret?1:0) << "\tbtnId = " << btnId << std::endl;
+        if(isActive){
+            ImGui::PopStyleColor();
+        }
+
+        if(ImGui::IsItemActive() || ImGui::IsItemHovered()){
+            pos.x += 20;
+            ImGui::GetForegroundDrawList()->AddRectFilled(pos, pos+ImVec2(58.f, ImGui::GetFrameHeight()), ImGui::GetColorU32(ImGuiCol_Button, 1.f));
+            ImGui::GetForegroundDrawList()->AddText(pos+ImVec2(3,3), ImGui::GetColorU32(ImGuiCol_Text), id);
+        }
+        return ret;
     }
 
     template<typename LoggerBuffer>
