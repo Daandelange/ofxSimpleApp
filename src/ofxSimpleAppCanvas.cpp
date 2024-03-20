@@ -133,12 +133,13 @@ ofRectangle ofxSimpleAppCanvas::getContentProjection() const {
     return textureArea;
 }
 
+// Draws the FBO content to screen and an optional viewport rect.
 void ofxSimpleAppCanvas::draw(){
     ofPushStyle();
     if(fbo.isAllocated()){
         ofFill();
         ofSetColor(ofColor::white);
-        fbo.draw(screenRect.x, screenRect.y, screenRect.width, screenRect.height);
+        fbo.draw(0,0);//screenRect.x, screenRect.y, screenRect.width, screenRect.height);
     }
     if(bDrawScreenRect){
         ofNoFill();
@@ -149,6 +150,7 @@ void ofxSimpleAppCanvas::draw(){
     ofPopStyle();
 }
 
+// Submits ImGui commands
 void ofxSimpleAppCanvas::drawGuiSettings(){
     ImGui::Dummy({ofxSA_UI_MARGIN,ofxSA_UI_MARGIN});
     ImGui::SeparatorText("Output Canvas");
@@ -174,7 +176,7 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
     ImGui::Text("Display Zone: pos=[%.0f, %.0f], size=%.0f x %.0f", screenrect.x, screenrect.y, screenrect.width, screenrect.height);
 }
 
-
+// Viewport controls, ImGui HUD
 void ofxSimpleAppCanvas::drawGuiViewportHUD(){
 
     // Start a new window space

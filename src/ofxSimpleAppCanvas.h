@@ -75,7 +75,9 @@ class ofxSimpleAppCanvas {
         float viewZoom = 1.f;
         glm::vec2 viewTranslation = {0,0};
 
+    public:
         ofFbo fbo;
+    private:
         ofRectangle screenRect; // draw area
 
         // Event emitters for listening to updates

@@ -105,6 +105,31 @@ void ofxSimpleApp::setup(){
 #	endif
 #endif
 
+#ifdef ofxSA_TEXRECORDER_ENABLE
+    // Setup texture recorder
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    m_Recorder.setup(true, false, glm::vec2(canvas.getCanvasWidth(), canvas.getCanvasHeight()) );
+#   else
+    m_Recorder.setup(true, false, glm::vec2(ofGetWidth(), ofGetHeight()) );
+#   endif
+    m_Recorder.setAudioConfig(1024,44100); // todo: make optional
+    m_Recorder.setOverWrite(true); // Allow overwriting recording file destintion
+
+    // Locate ffmpeg binary
+    #if defined(TARGET_OSX)
+    m_Recorder.setFFmpegPath(ofToDataPath("ffmpeg/osx/ffmpeg"));
+    #elif defined(TARGET_WIN32)
+	m_Recorder.setFFmpegPath(ofToDataPath("ffmpeg/osx/ffmpeg"));
+    m_Recorder.setFFmpegPath(ofToDataPath("C:/dev/msys64/ThirdParty/ffmpeg/ffmpeg_build/bin/ffmpeg.exe", true));
+    #endif
+
+    // Set default codec
+    m_Recorder.setVideoCodec(ofxSA_TEXRECORDER_DEFAULT_CODEC);
+    
+    // Configure FBO reader
+    //fastFboReader.setAsync(false);
+#endif
+
 	// Restore settings on launch
 	loadXmlSettings();
 
@@ -137,6 +162,11 @@ void ofxSimpleApp::draw(){
 #ifdef ofxSA_SYPHON_OUTPUT
     publishSyphonTexture();
 #endif
+
+#ifdef ofxSA_TEXRECORDER_ENABLE
+    recordCanvasFrame();
+#endif
+
     renderGui();
 }
 
@@ -146,6 +176,61 @@ void ofxSimpleApp::publishSyphonTexture(){
     // By default, this publishes the full window.
     // You can override this to publish a custom texture.
     syphonServer.publishScreen();
+}
+#endif
+
+//--------------------------------------------------------------
+#ifdef ofxSA_TEXRECORDER_ENABLE
+bool ofxSimpleApp::startRecordingCanvas(){
+    // Set new target file
+#   if defined(TARGET_OSX)
+    m_Recorder.setOutputPath( ofToDataPath(ofGetTimestampString() + ".mp4", true ));
+#   else
+    m_Recorder.setOutputPath( ofToDataPath(ofGetTimestampString() + ".avi", true ));
+#   endif
+
+    // Recording settings
+    m_Recorder.setVideoCodec(ofxSA_TEXRECORDER_DEFAULT_CODEC);
+    m_Recorder.setInputPixelFormat("rgba");
+    // example test with h264_nvenc
+    //m_Recorder.setVideoCodec("h264_nvenc");
+    m_Recorder.setBitRate(8000);
+
+    isRecordingCanvas = m_Recorder.startCustomRecord();
+
+    return isRecordingCanvas;
+}
+bool ofxSimpleApp::stopRecordingCanvas(){
+    m_Recorder.stop();
+    isRecordingCanvas = false;
+
+    return isRecordingCanvas == false;
+}
+void ofxSimpleApp::recordCanvasFrame(){
+    //static ofPixels mPix;
+    if (m_Recorder.isRecording()) {
+		if (isRecordingCanvas && canvas.fbo.isAllocated()) {
+            // Read FBO to pixels
+            //canvas.fbo.updateTexture(0);
+			canvas.fbo.readToPixels(recordedPixels);
+            fastFboReader.setAsync(false);
+            if(true){//} fastFboReader.readToPixels(canvas.fbo, recordedPixels, OF_IMAGE_COLOR_ALPHA)){
+            //if(fastFboReader.readToPixels(canvas.fbo, recordedPixels, GL_RGBA32F)){
+                ofSaveImage(recordedPixels, ofToDataPath("testScreenShot.png"));
+
+                // Add frame
+                if (recordedPixels.getWidth() > 0 && recordedPixels.getHeight() > 0) {
+                    m_Recorder.addFrame(recordedPixels);
+                }
+                
+            }
+            else {
+                std::cout << "failed readToPixels !" << std::endl;
+                //canvas.fbo.readToPixels(mPix); // fallback on native pixels grabbing
+            }
+            
+		}
+	}
 }
 #endif
 
@@ -452,7 +537,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             ImGui::EndMenu();
         } // end Status menu
 
-        if(ImGui::BeginMenu("Options")){
+        if(ImGui::BeginMenu("Modules")){
             ImGui::SeparatorText("ofxSimpleApp");
 #ifdef ofxSA_DEBUG
             ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
@@ -467,12 +552,40 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             ImGui::Text("Server name: %s", syphonServer.getName().c_str());
             ImGui::EndDisabled();
 #endif
+
+#ifdef ofxSA_TEXRECORDER_ENABLE
+            ImGui::SeparatorText("Texture Recorder");
+            
+            ImGui::BeginDisabled(true);
+            ImGui::Checkbox("Recording state", &isRecordingCanvas);
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            if(!isRecordingCanvas){
+                if(ImGui::Button("Start##startRecordCanvas")){
+                    startRecordingCanvas();
+                }
+            }
+            else {
+                if(ImGui::Button("Stop##startRecordCanvas")){
+                    stopRecordingCanvas();
+                }
+            }
+            ImGui::Text("FFmpeg   : %s", m_Recorder.getFFmpegPath().c_str());
+            ImGui::Text("Bitrate  : %u", m_Recorder.getBitRate());
+            ImGui::Text("FPS      : %.2f", m_Recorder.getFps());
+            ImGui::Text("Width    : %.0f", m_Recorder.getWidth());
+            ImGui::Text("Height   : %.0f", m_Recorder.getHeight());
+            ImGui::Text("Duration : %.2f / %.2f", m_Recorder.getCaptureDuration(), m_Recorder.getRecordedDuration());
+            ImGui::Text("File     : %s", m_Recorder.getOutputPath().c_str());
+            ImGui::Text("Codec    : %s", m_Recorder.getVideoCodec().c_str());
+#endif
+
             ImGui::EndMenu();
         }
 
         // View menu
         if(ImGui::BeginMenu("View")){
-            ImGui::Checkbox("Playhead window", &bShowTimeClockWindow);
+            ImGui::Checkbox("Timeline", &bShowTimeClockWindow);
             ImGui::Separator();
             ImGui::EndMenu();
         }

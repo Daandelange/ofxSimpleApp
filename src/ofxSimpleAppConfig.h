@@ -219,6 +219,16 @@
 #   endif
 #endif
 
+// Texture Recorder
+// tmp enabled by default
+#define ofxSA_TEXRECORDER_ENABLE
+#ifdef ofxSA_TEXRECORDER_ENABLE
+//  Set default codec
+#   ifndef ofxSA_TEXRECORDER_DEFAULT_CODEC
+#       define ofxSA_TEXRECORDER_DEFAULT_CODEC "libx264"
+#   endif
+#endif
+
 // Todo :
 // - Optional : debugging disable, logging disable,
 // - App expiration date for distributing prototypes ?

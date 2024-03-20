@@ -24,6 +24,11 @@
 #include "ofxSimpleAppTimeline.h"
 #endif
 
+#ifdef ofxSA_TEXRECORDER_ENABLE
+#include "ofxFFmpegRecorder.h"
+#include "ofxFastFboReader.h"
+#endif
+
 //enum AppState {
 //    SETUP,
 //    WAITING,
@@ -159,5 +164,17 @@ protected:
 	protected:
 		ofxSATimeline timeline;
 		bool bShowTimeClockWindow = true;
+#endif
+
+#ifdef ofxSA_TEXRECORDER_ENABLE
+	public:
+		bool startRecordingCanvas();
+		bool stopRecordingCanvas();
+	protected:
+		ofxFFmpegRecorder m_Recorder;
+		bool isRecordingCanvas = false;
+		ofxFastFboReader fastFboReader = {3};
+		void recordCanvasFrame();
+		ofPixels recordedPixels;
 #endif
 };
