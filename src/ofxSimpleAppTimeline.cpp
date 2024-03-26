@@ -154,7 +154,8 @@ void ofxSATimeline::start() {
 
 // Function to pause the timeline
 void ofxSATimeline::pause() {
-    if (playing && !paused) {
+    if (!paused) {
+        if(!playing) start(); // Ensure play is on
         paused = true;
         last_frame_time = std::chrono::high_resolution_clock::now();
     }
@@ -169,11 +170,7 @@ void ofxSATimeline::resume() {
 }
 
 void ofxSATimeline::stop() {
-    if (playing) {
-        pause();
-    }
     reset();
-    //std::cout << "Timeline stopped." << std::endl;
 }
 
 // Frame-by-frame, relative
@@ -210,7 +207,12 @@ void ofxSATimeline::nextFrame(int _direction){
 }
 
 void ofxSATimeline::goToFrame(int _frame, bool _relative){
-    if(playing){
+    // Enable play, stay paused (allows setting frame)
+    if(!playing){
+        pause();
+    }
+    // Set frame
+    {
         // Sanitize args
         if(_relative){
             // ignore?
@@ -248,7 +250,13 @@ void ofxSATimeline::goToFrame(int _frame, bool _relative){
 }
 
 void ofxSATimeline::goToSeconds(double _seconds, bool _relative){
-    if(playing && _seconds < duration){
+    // Enable play, stay paused (allows setting frame)
+    if(!playing){
+        pause();
+    }
+
+    // Set seconds
+    if( _seconds < duration){
         if(_relative){
             playhead += _seconds;
         }
@@ -624,19 +632,13 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
 
     // Ramps
     else if(bShowRamps){
-
-
-
-
-
-    //            for(unsigned int i=0; i < ofxSATL_Ramp_Hist_Size-1; i++){
-    //                beatProgressHist[i] = beatProgressHist[i+1];
-    //            }
-    //            beatProgressHist[ofxSATL_Ramp_Hist_Size-1] = timeRamps.beatProgress;
+//        for(unsigned int i=0; i < ofxSATL_Ramp_Hist_Size-1; i++){
+//            beatProgressHist[i] = beatProgressHist[i+1];
+//        }
+//        beatProgressHist[ofxSATL_Ramp_Hist_Size-1] = timeRamps.beatProgress;
 
         // Signals & Ramps
         ImGui::BeginGroup();
-
 
         // Bar Ramps
         static float barProgressHist[ofxSATL_Ramp_Hist_Size] = {0};
@@ -821,17 +823,23 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::SameLine();
 
         // Prev-next controls
-        if(paused || playSpeed==0){
-            ImGui::Spacing();
-            ImGui::SameLine();
-            if(ImGui::Button("<")){
-                nextFrame(-1);
-            }
-            ImGui::SameLine();
-            if(ImGui::Button(">")){
-                nextFrame(1);
-            }
+        ImGui::Spacing();
+        ImGui::SameLine();
+
+        bool endDisabled = false;
+        if(!(paused || playSpeed==0)){
+            ImGui::BeginDisabled();
+            endDisabled = true;
         }
+        if(ImGui::Button("<")){
+            nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?(-1*fps):-1);
+        }
+
+        ImGui::SameLine();
+        if(ImGui::Button(">")){
+            nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?fps:1);
+        }
+        if(endDisabled) ImGui::EndDisabled();
 
         if(horizontalLayout) ImGui::SameLine();
 
@@ -893,7 +901,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
 }
 
 void ofxSATimeline::drawImGuiTimelineWindow(bool* p_open){
-    if(ImGui::Begin("Timeline Controls", p_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)){
+    if(ImGui::Begin("Timeline", p_open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar)){
         drawImGuiPlayControls();
     }
 
