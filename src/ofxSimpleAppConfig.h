@@ -236,10 +236,12 @@
 
 
 // Platform variables
+// todo: prefix ofxSa_ namespace !
 #if !defined(SHORTCUT_FUNC) && !defined(MOD_KEY)
 #   if defined(TARGET_OSX)
 #       define SHORTCUT_FUNC "CMD"
 #       define MOD_KEY OF_KEY_SUPER
+#       define MOD_KEY_IMGUI ImGuiMod_Super
 //#elif defined(TARGET_LINUX)
 //    #define SHORTCUT_FUNC "CTRL"
 //    #define MOD_KEY OF_KEY_CONTROL
@@ -249,5 +251,6 @@
 #   else
 #       define SHORTCUT_FUNC "CTRL"
 #       define MOD_KEY OF_KEY_CONTROL
+#       define MOD_KEY_IMGUI ImGuiMod_Ctrl
 #   endif
 #endif
