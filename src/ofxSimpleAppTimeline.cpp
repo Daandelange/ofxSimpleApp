@@ -9,15 +9,14 @@ ofxSATimeSignature::ofxSATimeSignature(unsigned int _bars, unsigned int _noteVal
 
 double ofxSATimeSignature::getBeatDurationSecs() const {
     return durations.beat;
-    return 60.f/bpm;
 }
 
 double ofxSATimeSignature::getNoteDurationSecs() const {
-    return getBeatDurationSecs()/notesPerBeat;
+    return durations.note;
 }
 
 double ofxSATimeSignature::getBarDurationSecs() const {
-    return getBeatDurationSecs()*beatsPerBar;
+    return durations.bar;
 }
 
 void ofxSATimeSignature::set(unsigned int _bars, unsigned int _noteValue, unsigned int _bpm){
@@ -138,12 +137,23 @@ namespace ImGuiEx{
 ofxSATimeline::ofxSATimeline(unsigned int _fps, double _duration, ofxSATimelineLoopMode _loopMode, unsigned int _beatsPerBar, unsigned int _notesPerBeat, int _beatsPerMinute)
     : fps(_fps),
       duration(_duration),
+      timeSignature(_beatsPerBar, _notesPerBeat, _beatsPerMinute),
       loopMode(_loopMode),
       playSpeed(1.0),
-      timeSignature(_beatsPerBar, _notesPerBeat, _beatsPerMinute),
       playbackMode(ofxSATimelineMode::ofxSATimelineMode_Offline)
 {
     reset();
+}
+
+const ofxSATimeSignature& ofxSATimeline::getTimeSignature() const {
+    return timeSignature;
+}
+
+const ofxSATimeCounters& ofxSATimeline::getCounters() const {
+    return counters;
+}
+const ofxSATimeRamps& ofxSATimeline::getRamps() const {
+    return timeRamps;
 }
 
 void ofxSATimeline::start() {
@@ -229,19 +239,19 @@ void ofxSATimeline::goToFrame(int _frame, bool _relative){
 
         // Update playhead
         if (playbackMode == ofxSATimelineMode_RealTime_Absolute || playbackMode == ofxSATimelineMode_RealTime_Relative) {
-            if(_relative) playhead += frame_time * _frame;
-            else playhead = frame_time * _frame;
+            if(_relative) counters.playhead += frame_time * _frame;
+            else counters.playhead = frame_time * _frame;
         }
         else {
-            if(_relative) playhead = frame_time * ( frameNum + _frame);
-            else playhead = frame_time * _frame;
+            if(_relative) counters.playhead = frame_time * ( counters.frameNum + _frame);
+            else counters.playhead = frame_time * _frame;
         }
 
         // Incremment rendered frames
-        frameCount++;
+        counters.frameCount++;
 
         // Remember (for rt modes)
-        last_frame_time = start_time + std::chrono::seconds((long long)playhead);
+        last_frame_time = start_time + std::chrono::seconds((long long)counters.playhead);
 
         checkLoops();
 
@@ -258,21 +268,21 @@ void ofxSATimeline::goToSeconds(double _seconds, bool _relative){
     // Set seconds
     if( _seconds < duration){
         if(_relative){
-            playhead += _seconds;
+            counters.playhead += _seconds;
         }
         else {
-            playhead = _seconds;
+            counters.playhead = _seconds;
         }
 
         // Incremment rendered frames
-        frameCount++;
+        counters.frameCount++;
 
         // Remember (for rt modes)
         if (playbackMode == ofxSATimelineMode_RealTime_Absolute)
-            start_time = std::chrono::high_resolution_clock::now() - std::chrono::seconds((long long)(playhead/playSpeed));
+            start_time = std::chrono::high_resolution_clock::now() - std::chrono::seconds((long long)(counters.playhead/playSpeed));
         else
-            start_time = std::chrono::high_resolution_clock::now() - std::chrono::seconds((long long)playhead);
-        last_frame_time = start_time + std::chrono::seconds((long long)playhead);
+            start_time = std::chrono::high_resolution_clock::now() - std::chrono::seconds((long long)counters.playhead);
+        last_frame_time = start_time + std::chrono::seconds((long long)counters.playhead);
 
         checkLoops();
 
@@ -318,7 +328,7 @@ void ofxSATimeline::tickPlayHead(){
     //auto elapsed_time = std::chrono::duration<double>(current_time - last_frame_time) * playSpeed;
 
     // Incremment rendered frames
-    frameCount++;
+    counters.frameCount++;
 
     // Update playhead
     if (playbackMode == ofxSATimelineMode_RealTime_Absolute || playbackMode == ofxSATimelineMode_RealTime_Relative) {
@@ -331,19 +341,19 @@ void ofxSATimeline::tickPlayHead(){
         if (playbackMode == ofxSATimelineMode_RealTime_Absolute) {
             auto elapsed_time = std::chrono::duration<double>(current_time - start_time) * playSpeed;
 
-            if(playSpeed<0) playhead = duration - std::abs(std::fmod(elapsed_time.count(), duration));
-            else playhead = elapsed_time.count();
+            if(playSpeed<0) counters.playhead = duration - std::abs(std::fmod(elapsed_time.count(), duration));
+            else counters.playhead = elapsed_time.count();
             //playhead = glm::abs(glm::mod(playhead, duration));
             //std::cout << "elapsed=" << elapsed_time.count() << " Playhead=" << playhead << std::endl;
             //std::cout << "elapsed=" << glm::fract(1.0) << " Playhead=" << glm::mod(1.0,1.0) << std::endl;
         } else if (playbackMode == ofxSATimelineMode_RealTime_Relative) {
             auto elapsed_time = std::chrono::duration<double>(current_time - last_frame_time) * playSpeed;
-            playhead += elapsed_time.count();
+            counters.playhead += elapsed_time.count();
         }
     }
     else /*if (playbackMode == ofxSATimelineMode_Offline)*/ {
         double frame_time = 1.0 / (double)fps;
-        playhead = frame_time * (double)(frameNum+(1*playSpeed));
+        counters.playhead = frame_time * (double)(counters.frameNum+(1*playSpeed));
         //std::cout << "frameNum=" << frameNum << " \t ph=" << playhead << " --> " << (playhead / frame_time)<<std::endl;
         //std::cout << "frameNum=" << playhead / frame_time <<std::endl;
 
@@ -360,14 +370,14 @@ void ofxSATimeline::tickPlayHead(){
 void ofxSATimeline::checkLoops(){
     // Looping / Stopping
     // Check if duration exceeded
-    if ( playhead > duration || playhead < 0) {
+    if ( counters.playhead > duration || counters.playhead < 0) {
         // Handle looping
         switch(loopMode){
             case ofxSATimelineLoopMode::NoLoop :
                 stop();
             break;
             case ofxSATimelineLoopMode::LoopOnce :
-                if(loopCount>0) stop();
+                if(counters.loopCount>0) stop();
             break;
             case ofxSATimelineLoopMode::LoopInfinite :
 
@@ -376,10 +386,10 @@ void ofxSATimeline::checkLoops(){
         // Still playing ? Start over !
         if(playing){
             // Reverse play: loop at end
-            if(playhead < 0){
-                playhead = duration;
+            if(counters.playhead < 0){
+                counters.playhead = duration;
             }
-            else playhead = std::fmod(playhead, duration);
+            else counters.playhead = std::fmod(counters.playhead, duration);
         }
     }
 }
@@ -387,20 +397,16 @@ void ofxSATimeline::checkLoops(){
 // Updates internals and ramps according to playhead
 void ofxSATimeline::updateInternals(){
     double frame_time = 1.0 / (double)fps;
+
     // Update counters
-    beatCount = std::floor(playhead / timeSignature.getBeatDurationSecs());
-    noteCount = std::floor(playhead / timeSignature.getNoteDurationSecs());
-    barCount = std::floor(playhead / timeSignature.getBarDurationSecs());
-    if(playbackMode == ofxSATimelineMode_Offline) frameNum = std::floor((playhead) / frame_time + 0.00001); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
-    else frameNum = std::floor(playhead / frame_time); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
-    //std::cout << "frameNum=" << frameNum << " - " << playhead / frame_time << " - e=" << __DBL_EPSILON__ << std::endl;
+    counters.beatCount = std::floor(counters.playhead / timeSignature.getBeatDurationSecs());
+    counters.noteCount = std::floor(counters.playhead / timeSignature.getNoteDurationSecs());
+    counters.barCount  = std::floor(counters.playhead / timeSignature.getBarDurationSecs());
+    if(playbackMode == ofxSATimelineMode_Offline) counters.frameNum = std::floor((counters.playhead) / frame_time + 0.00001); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
+    else counters.frameNum = std::floor(counters.playhead / frame_time); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
 
     // Update ramps
-
-    //        timeRamps.updateRamps(std::round(playhead/frame_time)*frame_time, timeSignature);
-    //        timeRamps.updateRamps(playhead-std::fmod(playhead+ 0.00001,frame_time), timeSignature);
-    //        timeRamps.updateRamps(frameNum*frame_time, timeSignature);
-    timeRamps.updateRamps(playhead, timeSignature);
+    timeRamps.updateRamps(counters.playhead, timeSignature);
 }
 
 // todo: make private
@@ -421,16 +427,16 @@ double ofxSATimeline::getElapsedSeconds() const {
     //        auto current_time = std::chrono::high_resolution_clock::now();
     //        std::chrono::duration<double> elapsed_seconds = current_time - (start_time + paused_time);
     //        return elapsed_seconds.count();
-    return playhead;
+    return counters.playhead;
 }
 
 unsigned int ofxSATimeline::getFrameNum() const {
-    return static_cast<unsigned int>(frameNum);
+    return static_cast<unsigned int>(counters.frameNum);
 }
 
 // Returns the number of rendered frames
 unsigned int ofxSATimeline::getElapsedFrames() const {
-    return frameCount;
+    return counters.frameCount;
 }
 
 // Returns the number of frames if the composition is finite; 0 otherwise.
@@ -455,8 +461,12 @@ double ofxSATimeline::getDuration() const {
 
 // Playhead position
 double ofxSATimeline::getProgress() const {
-    return playhead/getDuration();
+    return counters.playhead/getDuration();
     //return (double)frame_count/(double)getTotalFrames();
+}
+
+unsigned int ofxSATimeline::getFps() const {
+    return fps;
 }
 
 //    double getCurrentBeat() const {
@@ -684,7 +694,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::Text("Bar");
         ImGui::VSliderFloat("##barprogress", ImVec2(20, 50), &timeRamps.barProgress, 0.0f, 1.0f, "");
         //ImGui::VSliderFloat("##barstep", ImVec2(20, 50), &timeRamps.barS, 0.0f, 1.0f, "");
-        ImGui::Text("%03u", barCount%100);
+        ImGui::Text("%03u", counters.barCount%100);
         ImGui::EndGroup();
         ImGui::SameLine();
         ImGui::BeginGroup();
@@ -692,7 +702,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::VSliderFloat("##beatprogress", ImVec2(14, 50), &timeRamps.beatProgress, 0.0f, 1.0f, "");
         ImGui::SameLine();
         ImGui::VSliderFloat("##beatstep", ImVec2(6, 50), &timeRamps.beatStep, 0.0f, 1.0f, "");
-        ImGui::Text("%04u", beatCount%100);
+        ImGui::Text("%04u", counters.beatCount%100);
         ImGui::EndGroup();
         ImGui::SameLine();
         ImGui::BeginGroup();
@@ -700,7 +710,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::VSliderFloat("##noteprogress", ImVec2(14, 50), &timeRamps.noteProgress, 0.0f, 1.0f, "");
         ImGui::SameLine();
         ImGui::VSliderFloat("##notestep", ImVec2(6, 50), &timeRamps.noteStep, 0.0f, 1.0f, "");
-        ImGui::Text("%04u", noteCount%100);
+        ImGui::Text("%04u", counters.noteCount%100);
         ImGui::EndGroup();
 
         ImGui::EndDisabled();
@@ -724,9 +734,9 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
 
         ImGui::Text("%10.3f s", getElapsedSeconds());
         ImGui::Text("%10u f", getFrameNum());
-        ImGui::Text("%4u.%2u.%2u tc", barCount, beatCount%timeSignature.beatsPerBar, noteCount%timeSignature.notesPerBeat);
+        ImGui::Text("%4u.%2u.%2u tc", counters.barCount, counters.beatCount%timeSignature.beatsPerBar, counters.noteCount%timeSignature.notesPerBeat);
         ImGui::Text("%10.6f %%", getProgress());
-        if(loopCount>0) ImGui::Text("Loops   : %10i", loopCount);
+        if(counters.loopCount>0) ImGui::Text("Loops   : %10i", counters.loopCount);
 
         //
 
@@ -748,8 +758,8 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         double barScaleSecond = barSize.x / duration;
         barPos.y+=1;
         ImGui::SetNextItemWidth(barSize.x);
-        if(ImGui::SliderScalar("##Playhead",ImGuiDataType_Double, &playhead, &pHeadMin, &duration, "" )){
-            goToSeconds(playhead);
+        if(ImGui::SliderScalar("##Playhead",ImGuiDataType_Double, &counters.playhead, &pHeadMin, &duration, "" )){
+            goToSeconds(counters.playhead);
         }
 
         ImDrawList* wdl = ImGui::GetWindowDrawList();
@@ -831,12 +841,12 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
             ImGui::BeginDisabled();
             endDisabled = true;
         }
-        if(ImGui::Button("<")){
+        if(ImGui::ArrowButton("frame-prev", ImGuiDir_Left)){
             nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?(-1*fps):-1);
         }
 
         ImGui::SameLine();
-        if(ImGui::Button(">")){
+        if(ImGui::ArrowButton("frame-next", ImGuiDir_Right)){
             nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?fps:1);
         }
         if(endDisabled) ImGui::EndDisabled();
@@ -911,17 +921,17 @@ void ofxSATimeline::drawImGuiTimelineWindow(bool* p_open){
 void ofxSATimeline::reset() {
     playing = false;
     paused = false;
-    playhead = 0.0;
-    frameCount = 0;
-    frameNum = 0;
-    loopCount = 0;
-    noteCount = 0;
-    beatCount = 0;
-    barCount = 0;
+    counters.playhead = 0.0;
+    counters.frameCount = 0;
+    counters.frameNum = 0;
+    counters.loopCount = 0;
+    counters.noteCount = 0;
+    counters.beatCount = 0;
+    counters.barCount = 0;
 
     //loop_complete = false;
     start_time = std::chrono::high_resolution_clock::now();
     paused_time = std::chrono::duration<double>(0);
 
-    timeRamps.updateRamps(playhead, timeSignature);
+    timeRamps.updateRamps(counters.playhead, timeSignature);
 }

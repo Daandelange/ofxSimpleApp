@@ -100,8 +100,14 @@ namespace ImGuiEx {
 
         ImGui::End();
     }
+    bool ToolBarItem(const char* id, bool* isActive){
+        if(ToolBarItem(id, *isActive)){
+            *isActive = !*isActive;
+            return true;
+        }
+        return false;
+    }
     bool ToolBarItem(const char* id, bool isActive){
-        static int tmp;
         std::string btnId = id;
         btnId = btnId.substr(0,1);
         btnId.append("##toolbar-item-");
@@ -116,7 +122,6 @@ namespace ImGuiEx {
         if(ImGui::Button(btnId.c_str()))
             ret=true;
 
-        if(ret) std::cout << "ret = " << (ret?1:0) << "\tbtnId = " << btnId << std::endl;
         if(isActive){
             ImGui::PopStyleColor();
         }

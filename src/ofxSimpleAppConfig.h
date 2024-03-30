@@ -217,6 +217,19 @@
 #   ifndef ofxSA_TIMELINE_AUTOSTART
 #       define ofxSA_TIMELINE_AUTOSTART true
 #   endif
+#   ifndef ofxSA_TIMELINE_SINGLETON
+#       define ofxSA_TIMELINE_SINGLETON true
+#   endif
+//  Helper for getting the timeline instance
+#   if ofxSA_TIMELINE_SINGLETON
+#       define ofxSA_TIMELINE_GET(varname) ofxSATimeline::getTimeline()
+#	else
+#       define ofxSA_TIMELINE_GET(varname) varname
+#   endif
+#else
+#   undef ofxSA_TIMELINE_AUTOSTART
+#   undef ofxSA_TIMELINE_SINGLETON
+#   undef ofxSA_TIMELINE_GET
 #endif
 
 // Texture Recorder

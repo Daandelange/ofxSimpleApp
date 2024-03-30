@@ -92,6 +92,7 @@ namespace ImGuiEx {
     bool BeginToolBar(bool verticalLayout=true);
     void EndToolBar();
     bool ToolBarItem(const char* id, bool isActive=false);
+    bool ToolBarItem(const char* id, bool* isActive);
 
     template<typename LoggerBuffer=ImGuiTextBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& );

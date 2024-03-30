@@ -162,7 +162,9 @@ protected:
 
 #ifdef ofxSA_TIMELINE_ENABLE
 	protected:
+#	if !ofxSA_TIMELINE_SINGLETON
 		ofxSATimeline timeline;
+#endif
 		bool bShowTimeClockWindow = true;
 		virtual void ImGuiDrawTimeline();
 #endif

@@ -51,6 +51,18 @@ public:
     void updateValues();
 };
 
+// Struct with all time counters available
+struct ofxSATimeCounters {
+    unsigned int frameCount; // Number of rendered frames
+    unsigned int frameNum; // Theoretical frame number
+    unsigned int loopCount;
+    unsigned int beatCount;
+    unsigned int barCount;
+    unsigned int noteCount;
+    double playhead; // In seconds
+    const double& elapsedSeconds(){ return playhead; } // Alias
+};
+
 // - - - - - - - - - -
 
 struct ofxSATimeRamps {
@@ -97,12 +109,41 @@ namespace ImGuiEx{
 // A clock class with playhead functionality and some accessory ramps
 // That makes up a timeline
 class ofxSATimeline {
+#ifdef ofxSA_TIMELINE_SINGLETON
+    private:
+#else
+    public:
+#endif
+        ofxSATimeline(unsigned int _fps=60, double _duration = 60, ofxSATimelineLoopMode _loopMode = ofxSATimelineLoopMode::NoLoop, unsigned int _beatsPerBar = 4, unsigned int _notesPerBeat = 4, int _beatsPerMinute = 120);
 
-public:
-        ofxSATimeline(unsigned int _fps=60, double _duration = 60, ofxSATimelineLoopMode _loopMode = ofxSATimelineLoopMode::NoLoop, unsigned int _beatsPerBar = 4, unsigned int _notesPerBeat = 4, int _beatsPerMinute = 120)
-            ;
+#ifdef ofxSA_TIMELINE_SINGLETON
+    public:
+        //ofxSATimeline(const ofxSATimeline&) = delete; // not assignable
+        ofxSATimeline(ofxSATimeline&&) = delete; // not moveable
+        static ofxSATimeline& getTimeline(){
+            static ofxSATimeline tl;
+            return tl;
+        }
+#endif
+    public:
+        // Copy assignment. Use with caution! Can conflict with singleton usage creating a copy.
+        ofxSATimeline(const ofxSATimeline& _other) :
+            fps(_other.fps),
+            duration(_other.duration),
+            timeSignature(_other.timeSignature),
+            loopMode(_other.loopMode),
+            playSpeed(1.0),
+            playbackMode(ofxSATimelineMode::ofxSATimelineMode_Offline)
+        {
+            reset();
+            // go to same frame as other ?
+            if(_other.isPlaying()){
+                goToFrame(_other.getFrameNum());
+            }
+        }
 
-        void start();
+    // Starts the timeline (aka. play())
+    void start();
 
     // Function to pause the timeline
     void pause();
@@ -165,6 +206,13 @@ public:
     // Playhead position
     double getProgress() const;
 
+    // FPS
+    unsigned int getFps() const;
+
+    const ofxSATimeSignature& getTimeSignature() const;
+    const ofxSATimeCounters& getCounters() const;
+    const ofxSATimeRamps& getRamps() const;
+
 //    double getCurrentBeat() const {
 //        double beatsElapsed = getElapsedSeconds() * timeSignature.bpm / 60.0;
 //        double beatsPerFrame = static_cast<double>(fps) / 60.0;
@@ -192,19 +240,13 @@ private:
     ofxSATimelineMode playbackMode;
 
     // Counters
-    unsigned int frameCount; // Number of rendered frames
-    unsigned int frameNum; // Theoretical frame number
-    unsigned int loopCount;
-    unsigned int beatCount;
-    unsigned int barCount;
-    unsigned int noteCount;
+    ofxSATimeCounters counters;
 
     // Internals
     std::chrono::high_resolution_clock::time_point start_time;
     std::chrono::high_resolution_clock::time_point last_frame_time;
     std::chrono::duration<double> paused_time;
     std::chrono::duration<double> pausedTimes;
-    double playhead; // In seconds
 
     //bool loop_complete;
 

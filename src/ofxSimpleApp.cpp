@@ -101,7 +101,7 @@ void ofxSimpleApp::setup(){
 
 #ifdef ofxSA_TIMELINE_ENABLE
 #	if ofxSA_TIMELINE_AUTOSTART == true
-	timeline.start();
+	ofxSA_TIMELINE_GET(timeline).start();
 #	endif
 #endif
 
@@ -145,14 +145,14 @@ void ofxSimpleApp::update(){
     syncHistogram<float, double>(FPSHistory, ofGetFrameRate());
 
 #ifdef ofxSA_TIMELINE_ENABLE
-    timeline.tickUpdate();
+    ofxSA_TIMELINE_GET(timeline).tickUpdate();
 #endif
 }
 
 //--------------------------------------------------------------
 void ofxSimpleApp::draw(){
 #ifdef ofxSA_TIMELINE_ENABLE
-    timeline.tickFrame();
+    ofxSA_TIMELINE_GET(timeline).tickFrame();
 #endif
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
@@ -980,7 +980,7 @@ void ofxSimpleApp::ImGuiDrawDockingSpace(){
 #ifdef ofxSA_TIMELINE_ENABLE
 void ofxSimpleApp::ImGuiDrawTimeline(){
     if(bShowTimeClockWindow){
-        timeline.drawImGuiTimelineWindow(&bShowTimeClockWindow);
+        ofxSA_TIMELINE_GET(timeline).drawImGuiTimelineWindow(&bShowTimeClockWindow);
     }
 }
 #endif
