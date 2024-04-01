@@ -20,7 +20,7 @@
 
 // Credentials
 #ifndef ofxSA_APP_NAME
-#   define ofxSA_APP_NAME "ofxSimpleApp"
+#   define ofxSA_APP_NAME "ofxSimpleApp" // Important : No whitespaces, serves as an ID !
 #endif
 #ifndef ofxSA_APP_AUTHOR
 #   define ofxSA_APP_AUTHOR "Anonymous"
@@ -84,13 +84,28 @@
 //#define ofxSA_ENABLE_PROFILING
 
 // XML
+// Todo: allow completely disabling saving ?
 // One has to be chosen, use ofxXmlSettings by default (tinyXML)
 #if !defined(ofxSA_XML_ENGINE_TINYXML) && !defined(ofxSA_XML_ENGINE_PUGIXML)
 #   define ofxSA_XML_ENGINE_TINYXML
 #endif
+// Only allow one (keep default)
+#if defined(ofxSA_XML_ENGINE_TINYXML) && defined(ofxSA_XML_ENGINE_PUGIXML)
+#   undef ofxSA_XML_ENGINE_PUGIXML
+#endif
+// Default save file name
+// Todo: rename with Default in name
+// Todo: A file to load by default ?
+// Todo: Split file extension apart ?
 #ifndef ofxSA_XML_FILENAME
 #   define ofxSA_XML_FILENAME "Settings.xml"
 #endif
+// Folder for saving and loading multiple files
+#ifndef ofxSA_XML_FOLDER
+//  Must have tailing slash !
+#   define ofxSA_XML_FOLDER "save_files/"
+#endif
+
 
 // - - - - -
 // COSMETICS
@@ -165,6 +180,9 @@
 #       define ofxSA_UI_RESTORE_STATE 0
 #   endif
 #endif
+
+// Saving & Loading functionality
+
 
 // Build default imgui flags from options
 #define ofxSA_UI_IMGUI_CONFIGFLAGS_default_on ImGuiConfigFlags_NavEnableGamepad

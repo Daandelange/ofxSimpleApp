@@ -121,8 +121,10 @@ protected:
 		virtual bool populateXmlSettings() = 0;
 		virtual bool retrieveXmlSettings() = 0;
 #endif
-		bool loadXmlSettings();
-		bool saveXmlSettings();
+		bool loadXmlSettings(std::string _fileName = "");
+		bool saveXmlSettings(std::string _fileName = "");
+		const std::string savePath = ofxSA_XML_FOLDER;
+		std::string saveName = ofxSA_XML_FILENAME;
 
 
 		// Parameters

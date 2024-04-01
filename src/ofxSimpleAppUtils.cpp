@@ -134,6 +134,23 @@ namespace ImGuiEx {
         return ret;
     }
 
+    // - - - - Menu Shortcut helpers
+    inline bool BeginMenu(const char* label, const ImGuiKeyChord key)
+    {
+        if (ImGui::IsKeyChordPressed(key))
+            ImGui::OpenPopup(label);
+        return ImGui::BeginMenu(label);
+    };
+    // Wrapper for menuitem that can be opened with a local shortcut
+    // Usage: if (ImGui::MenuItem("Global Exit", "Alt+X")){...}
+    inline bool MenuItem(const char* label, const ImGuiKeyChord key)
+    {
+        char shortcut[32];
+        ImGui::GetKeyChordName(key, shortcut, IM_ARRAYSIZE(shortcut));
+        return ImGui::MenuItem(label, shortcut) || ImGui::IsKeyChordPressed(key);
+    }
+
+    // - - - - Logger Helpers
     template<typename LoggerBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& ){
         // Do nothing by default. Any const variables will disable this functionality

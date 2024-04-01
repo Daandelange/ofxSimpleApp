@@ -84,15 +84,28 @@ TYPE smoothstep(TYPE edge0, TYPE edge1, TYPE x);
 // ImGui Extensions
 namespace ImGuiEx {
 
+    // Helpmarkers (similar to ImGuiDemo code
     void ShowHelpMarker(const char* desc);
     bool BeginHelpMarker(const char* marker); // Call EndHelpMarker() if true, after submitting toltip content.
     void EndHelpMarker();
     bool ButtonActive(const char* id, bool isActive = false);
 
+    // Toolbar stuff
     bool BeginToolBar(bool verticalLayout=true);
     void EndToolBar();
     bool ToolBarItem(const char* id, bool isActive=false);
     bool ToolBarItem(const char* id, bool* isActive);
+
+    // Menu shortcut handler helper
+    // From https://github.com/ocornut/imgui/issues/7081#issuecomment-1857951212
+    // - - - -
+    // Wrapper for menu that can be opened with a global shortcut
+    // or submenu with a local shortcut
+    // usage: if (ImGui::BeginMenu("File", ImGuiMod_Alt | ImGuiKey_F)) {...}
+    inline bool BeginMenu(const char* label, const ImGuiKeyChord key);
+    // Wrapper for menuitem that can be opened with a local shortcut
+    // Usage: if (ImGui::MenuItem("Global Exit", "Alt+X")){...}
+    inline bool MenuItem(const char* label, const ImGuiKeyChord key);
 
     template<typename LoggerBuffer=ImGuiTextBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& );

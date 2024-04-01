@@ -296,25 +296,31 @@ void ofxSimpleApp::updateCursorForGui(){
 
 //--------------------------------------------------------------
 void ofxSimpleApp::keyPressed(ofKeyEventArgs &e){
-    // Fullscreen toggle
-    if(e.hasModifier(MOD_KEY) && e.keycode == 70){ // 70 = F
-        ofToggleFullscreen();
-    }
-    // Show GUI
-    if(e.hasModifier(MOD_KEY) && e.keycode == 71){ // 72 = G (H already taken in osx)
-        toggleGui();
-    }
-    // Exit ?
-    if(e.hasModifier(MOD_KEY) && e.keycode == 81){ // 81 = Q
-        ofExit();
-    }
-    // Save ?
-    if(e.hasModifier(MOD_KEY) && e.keycode == 83){ // 83 = S
-        saveXmlSettings();
-    }
-    // Load ?
-    if(e.hasModifier(MOD_KEY) && e.keycode == 76){ // 76 = L
-        loadXmlSettings();
+    // Son't interfecre with ImGui
+    if(ImGui::GetIO().WantCaptureKeyboard) return;
+
+    // Check keyboard shortcuts
+    if(e.hasModifier(MOD_KEY)){
+        // Fullscreen
+        if(e.keycode == 70){ // 70 = F
+            ofToggleFullscreen();
+        }
+        // Show GUI
+        else if(e.keycode == 71){ // 72 = G (H already taken in osx)
+            toggleGui();
+        }
+        // Exit ?
+        else if(e.keycode == 81){ // 81 = Q
+            ofExit();
+        }
+        // Save ?
+        else if(e.keycode == 83){ // 83 = S
+            saveXmlSettings();
+        }
+        // Load ?
+        else if(e.keycode == 76){ // 76 = L
+            loadXmlSettings();
+        }
     }
 }
 
@@ -396,7 +402,8 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             }
 
             // Logging
-            ImGui::Separator();
+            ImGui::Dummy({5,5});
+            ImGui::SeparatorText("Logging");
             ImGui::Checkbox("Show log window", &bShowLogs);
             ofLogLevel curLogLevel = ofGetLogLevel();
             static std::pair<ofLogLevel, std::string> ofLogLevels[] = {
@@ -416,7 +423,8 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 ImGui::EndCombo();
             }
 
-            ImGui::Separator();
+            ImGui::Dummy({5,5});
+            ImGui::SeparatorText("Gui");
             //ImGui::Checkbox("Show Gui", &bShowGui);
             if(ImGui::MenuItem("Hide GUI", SHORTCUT_FUNC "+G")){
                 bShowGui = false;
@@ -433,13 +441,144 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 onImguiViewportChange();
             }
 
-            ImGui::Separator();
+            ImGui::Dummy({5,5});
+            ImGui::SeparatorText("Document");
+            ImGui::TextDisabled("%s", savePath.c_str());
+            ImGui::SameLine();
+            ImGui::Text("%s", saveName.c_str());
+#ifdef ofxSA_XML_FOLDER
+            static bool reloadFolder = true;
+#endif
             if( ImGui::MenuItem( "Save", SHORTCUT_FUNC "+S" ) ){
                 saveXmlSettings();
+#ifdef ofxSA_XML_FOLDER
+                reloadFolder = true;
+#endif
             }
+            const bool bExists = ofFile(savePath+saveName).exists();
+            if(!bExists) ImGui::BeginDisabled();
             if( ImGui::MenuItem( "Load", SHORTCUT_FUNC "+L" ) ){
                 loadXmlSettings();
             }
+            if(!bExists) ImGui::EndDisabled();
+
+#ifdef ofxSA_XML_FOLDER
+            static ofDirectory saveDir;
+            static bool checkNewFileName = true;
+            if(reloadFolder){
+                saveDir.allowExt("xml");
+                saveDir.listDir(savePath);
+                reloadFolder=false;
+                checkNewFileName=true;
+            }
+            static char newFileName[128];
+
+            if(checkNewFileName){
+                // Load initial value ?
+                if(strlen(newFileName)==0){
+                    saveName.copy(newFileName, IM_ARRAYSIZE(newFileName));
+                }
+                std::string baseName=newFileName;
+                auto extensionPos = baseName.find_last_of(".");
+                if(extensionPos==baseName.npos){
+                    baseName = baseName.substr(0, extensionPos);
+                }
+
+                auto incrementPos = baseName.find_last_of("_");
+                unsigned int increment=0;
+                if(incrementPos<extensionPos){
+                    auto incrementStrVal = baseName.substr(incrementPos+1, extensionPos);
+                    increment=ofToInt(incrementStrVal);
+                    baseName = baseName.substr(0, incrementPos);
+                }
+                else {
+                    baseName = baseName.substr(0, extensionPos);
+                }
+
+                // Ensure default name
+                if(baseName.empty()){
+                    baseName = "Settings";
+                }
+
+                bool firstRun = true;
+                while(firstRun || ofFile(newFileName).exists()){
+                    std::string newName=baseName;
+
+                    // Add next increment
+                    if(increment>=1){
+                        newName += "_";
+                        newName += ofToString(increment);
+                    }
+                    // Add extension
+                    newName += ".xml";
+                    strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
+                    newName.copy(newFileName, IM_ARRAYSIZE(newFileName));
+
+                    // Increment
+                    firstRun = false;
+                    increment++;
+                }
+                checkNewFileName = false;
+            }
+
+            if(!saveDir.exists() || !saveDir.isDirectory()){
+                ImGui::TextColored( ImVec4(255,0,0,200), "Warning: the folder %s doesn't exist!", saveDir.path().c_str());
+            }
+            if( ImGui::BeginMenu("Save as...") ){
+                ImGui::SeparatorText("As a new File");
+
+                if(ImGui::InputText("File Name", newFileName, IM_ARRAYSIZE(newFileName), ImGuiInputTextFlags_EnterReturnsTrue)){
+                    checkNewFileName = true;
+                }
+
+                if(saveDir.size()>0){
+                    ImGui::SeparatorText("As an existing file...");
+                    for(auto& file : saveDir){
+                        if(ImGui::Selectable(file.getFileName().c_str(), false, ImGuiSelectableFlags_DontClosePopups)){
+                            strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
+                            file.getFileName().copy(newFileName, IM_ARRAYSIZE(newFileName));
+                        }
+                    }
+                }
+
+                ImGui::Dummy({5,5});
+                ImGui::Separator();
+                static bool bLoadNewFile;
+                ImGui::Checkbox("Save as a copy // todo", &bLoadNewFile);
+                ImGuiEx::ShowHelpMarker("To continue working in the current file");
+                if(ImGui::Button("Save")){
+                    saveXmlSettings(newFileName);
+                    ImGui::CloseCurrentPopup();
+                    reloadFolder = true;
+                }
+                ImGui::EndMenu();
+            }
+
+            // Load menu
+            const bool bFolderExists = saveDir.exists();
+            if(!bFolderExists) ImGui::BeginDisabled();
+            if( ImGui::BeginMenu("Load...") ){
+
+                ImGui::SeparatorText("Files");
+                ImGui::SameLine();
+                if(ImGui::SmallButton("Reload")){
+                    reloadFolder = true;
+                }
+
+                if(saveDir.size()<=0){
+                    ImGui::Text("There are no files yet...");
+                }
+                else for(auto& file : saveDir){
+                    if(ImGui::MenuItem(file.getFileName().c_str())){
+                        loadXmlSettings(file.getFileName());
+                    }
+                }
+                ImGui::EndMenu();
+            }
+            if(!bFolderExists) ImGui::EndDisabled();
+#endif
+
+            ImGui::Dummy({5,5});
             ImGui::Separator();
             if( ImGui::MenuItem( "Exit", SHORTCUT_FUNC "+Q" ) ){
                 ofExit();
@@ -1029,22 +1168,24 @@ ofRectangle ofxSimpleApp::getViewport() const {
 }
 
 // Xml settings from the ofxXml object
-bool ofxSimpleApp::loadXmlSettings(){
+bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
+    if(_fileName.empty()) _fileName = saveName;
+    std::string path = savePath+_fileName;
     bool ret = true;
     // Check file existence
-    if( !ofFile(ofxSA_XML_FILENAME).exists() ){
+    if( !ofFile(path).exists() ){
         // File doesn't exists, ignore
-        ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "The settings file doesn't exist yet, nothing to load.";
+        ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "The settings file `"<< path << "` doesn't exist yet, nothing to load !";
         return true; // No error, but nothing loaded
     }
 
     // Load string buffer
 #ifdef ofxSA_XML_ENGINE_PUGIXML
     pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load_file(ofToDataPath(ofxSA_XML_FILENAME, true).c_str());
+    pugi::xml_parse_result result = doc.load_file(ofToDataPath(path, true).c_str());
     bool loaded = false;
     if(!result){
-        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Pugi error loading the document. Error=" << result.description();
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Pugi error loading the document `"<< path << "`. Error=" << result.description();
         loaded = false;
     }
     else loaded = true;
@@ -1054,7 +1195,7 @@ bool ofxSimpleApp::loadXmlSettings(){
 #endif
 
     if(!loaded) {
-        ofLogError("ofxSimpleApp::loadXmlSettings()") << "Failed loading XML contents from `settings.xml` !";
+        ofLogError("ofxSimpleApp::loadXmlSettings()") << "Failed loading XML contents from `"<< path << "` !";
         return false;
     }
 
@@ -1064,16 +1205,16 @@ bool ofxSimpleApp::loadXmlSettings(){
     pugi::xml_node ofxSimpleAppSettingsNode = doc.child("ofxSimpleAppSettings");
     if(!ofxSimpleAppSettingsNode){
         ret = false;
-        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `ofxSimpleAppSettings` section in `settings.xml` !";
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `ofxSimpleAppSettings` section in the document !";
     }
     else {
         // Retrieve data
         if(ofxSimpleApp::ofxSA_retrieveXmlSettings(ofxSimpleAppSettingsNode)){
-            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `ofxSimpleAppSettings` section from `settings.xml` !";
+            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `ofxSimpleAppSettings` section from the document !";
         }
         else {
             ret = false;
-            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `ofxSimpleAppSettings` section in `settings.xml` !";
+            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `ofxSimpleAppSettings` section in the document !";
         }
     }
 
@@ -1081,15 +1222,15 @@ bool ofxSimpleApp::loadXmlSettings(){
     pugi::xml_node customAppSettingsNode = doc.child(ofxSA_APP_NAME);
     if(!customAppSettingsNode){
         ret = false;
-        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `" << ofxSA_APP_NAME << "` section in `settings.xml` !";
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `" << ofxSA_APP_NAME << "` section in the document !";
     }
     else {
         if(retrieveXmlSettings(customAppSettingsNode)){
-            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `" << ofxSA_APP_NAME << "` section from `settings.xml` !";
+            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `" << ofxSA_APP_NAME << "` section from the document !";
         }
         else {
             ret = false;
-            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `" << ofxSA_APP_NAME << "` section in `settings.xml` !";
+            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `" << ofxSA_APP_NAME << "` section in the document !";
         }
     }
 
@@ -1100,10 +1241,10 @@ bool ofxSimpleApp::loadXmlSettings(){
 #endif
 
     if(ret){
-        ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Successfully loaded XML data from `settings.xml`.";
+        ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Successfully loaded XML data from the document.";
     }
     else {
-        ofLogError("ofxSimpleApp::loadXmlSettings()") << "Failed parsing settings from XML data loaded from `settings.xml`.";
+        ofLogError("ofxSimpleApp::loadXmlSettings()") << "Failed parsing settings from XML data loaded from the document.";
     }
 
     return ret;
@@ -1111,7 +1252,10 @@ bool ofxSimpleApp::loadXmlSettings(){
 
 // Saving function
 //#include <typeinfo>
-bool ofxSimpleApp::saveXmlSettings(){
+bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
+    if(_fileName.empty()) _fileName = saveName;
+    std::string path = savePath+_fileName;
+
     bool success = true;
 #ifdef ofxSA_XML_ENGINE_PUGIXML
     pugi::xml_document doc;
@@ -1127,7 +1271,7 @@ bool ofxSimpleApp::saveXmlSettings(){
 
     if(success){
         // Save !
-        doc.save_file(ofToDataPath(ofxSA_XML_FILENAME).c_str());
+        doc.save_file(ofToDataPath(path).c_str());
     }
     else {
         // todo: failed populating
