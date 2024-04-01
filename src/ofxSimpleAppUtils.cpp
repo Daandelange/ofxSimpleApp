@@ -134,6 +134,21 @@ namespace ImGuiEx {
         return ret;
     }
 
+    // Button Pair
+    ImGuiDir ButtonPair(ImGuiDir dir1, ImGuiDir dir2){
+        ImGuiDir result = ImGuiDir_None;
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0,0});
+        if(ImGui::ArrowButton("##buttonpair1", ImGuiDir_Up)){
+            result = dir1;
+        }
+        ImGui::SameLine();
+        if(ImGui::ArrowButton("##buttonpair2", ImGuiDir_Down)){
+            result = dir2;
+        }
+        ImGui::PopStyleVar();
+        return result;
+    }
+
     // - - - - Menu Shortcut helpers
     inline bool BeginMenu(const char* label, const ImGuiKeyChord key)
     {

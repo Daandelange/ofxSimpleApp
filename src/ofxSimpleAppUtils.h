@@ -96,6 +96,9 @@ namespace ImGuiEx {
     bool ToolBarItem(const char* id, bool isActive=false);
     bool ToolBarItem(const char* id, bool* isActive);
 
+    // Updown / LeftRight button set
+    ImGuiDir ButtonPair(ImGuiDir dir1=ImGuiDir_Up, ImGuiDir dir2=ImGuiDir_Down);
+
     // Menu shortcut handler helper
     // From https://github.com/ocornut/imgui/issues/7081#issuecomment-1857951212
     // - - - -
