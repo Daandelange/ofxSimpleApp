@@ -137,12 +137,13 @@ namespace ImGuiEx {
     // Button Pair
     ImGuiDir ButtonPair(ImGuiDir dir1, ImGuiDir dir2){
         ImGuiDir result = ImGuiDir_None;
+        const float size = ImGui::GetFrameHeight();
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2{0,0});
-        if(ImGui::ArrowButton("##buttonpair1", ImGuiDir_Up)){
+        if(ImGui::ArrowButtonEx("##buttonpair1", dir1, {size*0.9f,size})){
             result = dir1;
         }
         ImGui::SameLine();
-        if(ImGui::ArrowButton("##buttonpair2", ImGuiDir_Down)){
+        if(ImGui::ArrowButtonEx("##buttonpair2", dir2, {size*0.9f,size})){
             result = dir2;
         }
         ImGui::PopStyleVar();
