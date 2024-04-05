@@ -183,6 +183,12 @@ void ofxSATimeline::stop() {
     reset();
 }
 
+void ofxSATimeline::togglePause() {
+    if(!isPlaying()) start();
+    else if(paused) resume();
+    else pause();
+}
+
 // Frame-by-frame, relative
 void ofxSATimeline::nextFrame(int _direction){
     // Only when paused or speed = 0
@@ -804,18 +810,18 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
 
         // Start over
         if(ImGui::Button("<-")){
-            start();
+            goToFrame(0);
         }
         ImGui::SameLine();
 
         // Start/Stop
         if(!playing){
-            if(ImGui::Button("Start")){
+            if(ImGui::Button("Play")){
                 start();
             }
         }
         else {
-            if(ImGui::Button("Stop ")){
+            if(ImGui::Button("Stop")){
                 stop();
             }
         }
@@ -841,13 +847,10 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
             ImGui::BeginDisabled();
             endDisabled = true;
         }
-        if(ImGui::ArrowButton("frame-prev", ImGuiDir_Left)){
-            nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?(-1*fps):-1);
-        }
-
-        ImGui::SameLine();
-        if(ImGui::ArrowButton("frame-next", ImGuiDir_Right)){
-            nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?fps:1);
+        ImGuiDir frameNav = ImGuiEx::ButtonPair(ImGuiDir_Left, ImGuiDir_Right);
+        if(frameNav!=ImGuiDir_None){
+            if(frameNav==ImGuiDir_Left) nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?(-1*fps):-1);
+            else nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?fps:1);
         }
         if(endDisabled) ImGui::EndDisabled();
 
@@ -857,11 +860,13 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::Text(" ");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(50);
-        if(ImGui::DragScalar("##playSpeed", ImGuiDataType_Double, &playSpeed, 0.001f, &speedMin, &speedMax, "%6.3f" )){
-
+        ImGui::DragScalar("##playSpeed", ImGuiDataType_Double, &playSpeed, 0.001f, &speedMin, &speedMax, "%6.3f" );
+        if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_ForTooltip) && !ImGui::IsItemActive() && ImGui::BeginItemTooltip()){
+            ImGui::Text("Play Speed: %.001f", playSpeed);
+            ImGui::EndTooltip();
         }
 
-         ImGui::SameLine();
+        ImGui::SameLine();
 
         // Loop toggle
         if(loopMode==ofxSATimelineLoopMode::NoLoop){
@@ -878,6 +883,10 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
             if(ImGui::Button("o##loop")){
                 loopMode=ofxSATimelineLoopMode::NoLoop;
             }
+        }
+        if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_ForTooltip) && !ImGui::IsItemActive() && ImGui::BeginItemTooltip()){
+            ImGui::Text("Looping: %s", loopMode==ofxSATimelineLoopMode::LoopOnce?"Once":(loopMode==ofxSATimelineLoopMode::NoLoop?"No Loop":"Loop Infinite"));
+            ImGui::EndTooltip();
         }
 
         ImGui::SameLine();
@@ -898,13 +907,13 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
                 playbackMode=ofxSATimelineMode::ofxSATimelineMode_Offline;
             }
         }
+        if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_ForTooltip) && !ImGui::IsItemActive() && ImGui::BeginItemTooltip()){
+            ImGui::Text("Playback Mode: %s", playbackMode==ofxSATimelineMode::ofxSATimelineMode_Offline?"Offline":(playbackMode==ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute?"Real Time (absolute)":"Real Time (relative)"));
+            ImGui::EndTooltip();
+        }
 
         ImGui::EndGroup(); // Controls
-
-
-
         ImGui::EndGroup(); // time section
-
     }
 
     ImGui::PopID();

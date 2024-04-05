@@ -150,8 +150,8 @@ class ofxSATimeline {
 
     // Function to resume the timeline
     void resume();
-
     void stop();
+    void togglePause();
 
     // Frame-by-frame, relative
     void nextFrame(int _direction = 1);
