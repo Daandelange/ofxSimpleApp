@@ -391,61 +391,160 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
         if(ImGui::BeginMenu( ofxSA_APP_NAME )){
             // Info
             if(ofxSA_APP_COPYRIGHT_START_YEAR != 0 && ofxSA_APP_COPYRIGHT_START_YEAR != curYear){
-                ImGui::Text("Copyright %i-%i %s", ofxSA_APP_COPYRIGHT_START_YEAR, curYear, ofxSA_APP_AUTHOR);
+                ImGui::TextDisabled("Copyright %i-%i %s", ofxSA_APP_COPYRIGHT_START_YEAR, curYear, ofxSA_APP_AUTHOR);
             }
             else {
-                ImGui::Text("Copyright %i %s", curYear, ofxSA_APP_AUTHOR);
+                ImGui::TextDisabled("Copyright %i %s", curYear, ofxSA_APP_AUTHOR);
             }
-            ImGui::Text("Version %d.%d.%d", ofxSA_VERSION_MAJOR, ofxSA_VERSION_MINOR, ofxSA_VERSION_PATCH );
+            ImGui::TextDisabled("Version %d.%d.%d", ofxSA_VERSION_MAJOR, ofxSA_VERSION_MINOR, ofxSA_VERSION_PATCH );
+            ImGui::Dummy({ofxSA_UI_MARGIN, ofxSA_UI_MARGIN});
+            ImGui::Separator();
+
+            // About
             if(ImGui::MenuItem("About")){
                 bShowAboutWindow = !bShowAboutWindow;
             }
 
-            // Logging
-            ImGui::Dummy({5,5});
-            ImGui::SeparatorText("Logging");
-            ImGui::Checkbox("Show log window", &bShowLogs);
-            ofLogLevel curLogLevel = ofGetLogLevel();
-            static std::pair<ofLogLevel, std::string> ofLogLevels[] = {
-                { OF_LOG_VERBOSE,       ofGetLogLevelName(OF_LOG_VERBOSE    ) },
-                { OF_LOG_NOTICE,        ofGetLogLevelName(OF_LOG_NOTICE     ) },
-                { OF_LOG_WARNING,       ofGetLogLevelName(OF_LOG_WARNING    ) },
-                { OF_LOG_ERROR,         ofGetLogLevelName(OF_LOG_ERROR      ) },
-                { OF_LOG_FATAL_ERROR,   ofGetLogLevelName(OF_LOG_FATAL_ERROR) },
-                { OF_LOG_SILENT,        ofGetLogLevelName(OF_LOG_SILENT     ) }
-            };
-            if( ImGui::BeginCombo("Log level", ofGetLogLevelName(curLogLevel).c_str()) ){
-                for(const auto& logLevel : ofLogLevels){
-                    if(ImGui::Selectable(logLevel.second.c_str(), curLogLevel == logLevel.first ) ){
-                        ofSetLogLevel(logLevel.first);
+            // Preferences
+            if(ImGui::BeginMenu("Preferences")){
+                // Logging
+                ImGui::SeparatorText("Logging");
+                ofLogLevel curLogLevel = ofGetLogLevel();
+                static std::pair<ofLogLevel, std::string> ofLogLevels[] = {
+                    { OF_LOG_VERBOSE,       ofGetLogLevelName(OF_LOG_VERBOSE    ) },
+                    { OF_LOG_NOTICE,        ofGetLogLevelName(OF_LOG_NOTICE     ) },
+                    { OF_LOG_WARNING,       ofGetLogLevelName(OF_LOG_WARNING    ) },
+                    { OF_LOG_ERROR,         ofGetLogLevelName(OF_LOG_ERROR      ) },
+                    { OF_LOG_FATAL_ERROR,   ofGetLogLevelName(OF_LOG_FATAL_ERROR) },
+                    { OF_LOG_SILENT,        ofGetLogLevelName(OF_LOG_SILENT     ) }
+                };
+                ImGui::SetNextItemWidth(80); // Don't span all width by default
+                if( ImGui::BeginCombo("##Log level", ofGetLogLevelName(curLogLevel).c_str()) ){
+                    for(const auto& logLevel : ofLogLevels){
+                        if(ImGui::Selectable(logLevel.second.c_str(), curLogLevel == logLevel.first ) ){
+                            ofSetLogLevel(logLevel.first);
+                        }
                     }
+                    ImGui::EndCombo();
                 }
-                ImGui::EndCombo();
+                ImGui::SameLine();
+                if(ImGui::Button("Show Logs")){
+                    bShowLogs = true;
+                    ImGui::SetWindowFocus("Logger");
+                }
+
+                ImGui::SeparatorText("Gui");
+                if(ImGui::Checkbox("Use dark theme", &bUseDarkTheme)){
+                    loadImGuiTheme();
+                }
+                // Todo : mouse pointer hide/show options ?
+
+                ImGui::EndMenu();
             }
 
             ImGui::Dummy({5,5});
-            ImGui::SeparatorText("Gui");
-            //ImGui::Checkbox("Show Gui", &bShowGui);
-            if(ImGui::MenuItem("Hide GUI", SHORTCUT_FUNC "+G")){
-                bShowGui = false;
-                updateCursorForGui();
-            }
-
-            if(ImGui::Checkbox("Use dark theme", &bUseDarkTheme)){
-                loadImGuiTheme();
-            }
             ImGui::Separator();
-            //ImGui::Dummy({ofxSA_UI_MARGIN,ofxSA_UI_MARGIN});
-            if(ImGui::MenuItem("Toggle full screen", SHORTCUT_FUNC "+F")){
-                ofToggleFullscreen();
-                onImguiViewportChange();
+            if( ImGui::MenuItem( "Exit", SHORTCUT_FUNC "+Q" ) ){
+                ofExit();
+            }
+            ImGui::EndMenu();
+        } // EndMenu( ENIGMATIK_WINDOW_TITLE )
+
+        ImGui::Text("\t\t");
+        if(ImGui::BeginMenu("Status")){
+
+            // Visualise / Handle app state
+//                ImGui::Dummy({1,10});
+//                //ImGui::Text("Application state");
+//                if(ImGui::BeginCombo("Application state", getAppStateName(appState, "404").c_str() )){
+//                    for(const auto& state : appStates){
+//                        if(ImGui::Selectable(state.second, appState == state.first ) ){
+//                            setAppState(state.first);
+//                        }
+//                    }
+//                    ImGui::EndCombo();
+//                }
+
+            ImGui::Dummy({1,10});
+            ImGui::SeparatorText("Runtime");
+            //ImGui::Indent();
+            ImGui::Text("FPS        : %.0f (target: %.0f)", ofGetFrameRate(), ofGetTargetFrameRate() );
+            ImGui::SameLine();
+            static int newTargetFPS = ofGetTargetFrameRate();
+            if(ImGui::Button("Change##fps")){
+                newTargetFPS = ofGetTargetFrameRate();
+                ImGui::OpenPopup("FPSChanger");
+            }
+            if(ImGui::BeginPopup("FPSChanger")){
+                ImGui::InputInt("FPS", &newTargetFPS);
+                if(ImGui::Button("Apply")){
+                    ImGui::CloseCurrentPopup();
+                    ofSetFrameRate(newTargetFPS);
+                }
+
+                // VSync setter (OF provides no getter...)
+                ImGui::Text("V-Sync : ");
+                ImGui::SameLine();
+                if(ImGui::Button("Disable")){
+                    ofSetVerticalSync(false);
+                }
+                ImGui::SameLine();
+                if(ImGui::Button("Enable")){
+                    ofSetVerticalSync(true);
+                }
+                ImGui::EndPopup();
+            }
+            ImGui::PlotHistogram("FPS", FPSHistory, ofxSA_FPS_HISTORY_SIZE, 0, NULL, 0.f, 70.f, ImVec2(0,ImGui::GetTextLineHeight()*2));
+
+            ImGui::Text("Uptime     : %.1f seconds", ofGetElapsedTimef() );
+            ImGui::Text("Resolution : %i x %i (ratio %.2f)", ofGetWindowWidth(), ofGetWindowHeight(), (((float)ofGetWindowWidth())/ofGetWindowHeight()) );
+            ImGui::SameLine();
+            static int newResolution[2] = {0, 0};
+            if(ImGui::Button("Change##resolution")){
+                newResolution[0] = ofGetWindowWidth();
+                newResolution[1] = ofGetWindowHeight();
+                ImGui::OpenPopup("ResolutionChanger");
+            }
+            if(ImGui::BeginPopup("ResolutionChanger")){
+                ImGui::InputInt("Width", &newResolution[0]);
+                ImGui::InputInt("Height", &newResolution[1]);
+                if(ImGui::Button("Apply")){
+                    ImGui::CloseCurrentPopup();
+                    ofSetWindowShape(newResolution[0], newResolution[1]);
+                }
+
+                // VSync setter (OF provides no getter...)
+                ImGui::Text("V-Sync : ");
+                ImGui::SameLine();
+                if(ImGui::Button("Disable")){
+                    ofSetVerticalSync(false);
+                }
+                ImGui::SameLine();
+                if(ImGui::Button("Enable")){
+                    ofSetVerticalSync(true);
+                }
+                ImGui::EndPopup();
             }
 
-            ImGui::Dummy({5,5});
-            ImGui::SeparatorText("Document");
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+            canvas.drawGuiSettings();
+//            ImGui::Text("FPS: %.0f", blend2d.getFps() );
+//            ImGui::Text("Timeframe: %.3f sec", blend2d.getSyncTime() );
+//            ImGui::PlotHistogram("##blend2d_fps_histogram", &blend2d.getFpsHist(), ofxBlend2D_FPS_HISTORY_SIZE, 0, NULL, 0.f, 75.f, ImVec2(0,30));
+#endif
+            //ImGui::Unindent();
+
+            //
+            ImGui::EndMenu();
+        } // end Status menu
+
+        if(ImGui::BeginMenu("Document")){
+            ImGui::SeparatorText("Open Document");
             ImGui::TextDisabled("%s", savePath.c_str());
             ImGui::SameLine();
             ImGui::Text("%s", saveName.c_str());
+            ImGui::Separator();
+
 #ifdef ofxSA_XML_FOLDER
             static bool reloadFolder = true;
 #endif
@@ -577,111 +676,10 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             }
             if(!bFolderExists) ImGui::EndDisabled();
 #endif
-
-            ImGui::Dummy({5,5});
-            ImGui::Separator();
-            if( ImGui::MenuItem( "Exit", SHORTCUT_FUNC "+Q" ) ){
-                ofExit();
-            }
             ImGui::EndMenu();
-        } // EndMenu( ENIGMATIK_WINDOW_TITLE )
-
-        ImGui::Text("\t\t");
-        if(ImGui::BeginMenu("Status")){
-
-            // Visualise / Handle app state
-//                ImGui::Dummy({1,10});
-//                //ImGui::Text("Application state");
-//                if(ImGui::BeginCombo("Application state", getAppStateName(appState, "404").c_str() )){
-//                    for(const auto& state : appStates){
-//                        if(ImGui::Selectable(state.second, appState == state.first ) ){
-//                            setAppState(state.first);
-//                        }
-//                    }
-//                    ImGui::EndCombo();
-//                }
-
-            ImGui::Dummy({1,10});
-            ImGui::SeparatorText("Runtime");
-            //ImGui::Indent();
-            ImGui::Text("FPS        : %.0f (target: %.0f)", ofGetFrameRate(), ofGetTargetFrameRate() );
-            ImGui::SameLine();
-            static int newTargetFPS = ofGetTargetFrameRate();
-            if(ImGui::Button("Change##fps")){
-                newTargetFPS = ofGetTargetFrameRate();
-                ImGui::OpenPopup("FPSChanger");
-            }
-            if(ImGui::BeginPopup("FPSChanger")){
-                ImGui::InputInt("FPS", &newTargetFPS);
-                if(ImGui::Button("Apply")){
-                    ImGui::CloseCurrentPopup();
-                    ofSetFrameRate(newTargetFPS);
-                }
-
-                // VSync setter (OF provides no getter...)
-                ImGui::Text("V-Sync : ");
-                ImGui::SameLine();
-                if(ImGui::Button("Disable")){
-                    ofSetVerticalSync(false);
-                }
-                ImGui::SameLine();
-                if(ImGui::Button("Enable")){
-                    ofSetVerticalSync(true);
-                }
-                ImGui::EndPopup();
-            }
-            ImGui::PlotHistogram("FPS", FPSHistory, ofxSA_FPS_HISTORY_SIZE, 0, NULL, 0.f, 70.f, ImVec2(0,ImGui::GetTextLineHeight()*2));
-
-            ImGui::Text("Uptime     : %.1f seconds", ofGetElapsedTimef() );
-            ImGui::Text("Resolution : %i x %i (ratio %.2f)", ofGetWindowWidth(), ofGetWindowHeight(), (((float)ofGetWindowWidth())/ofGetWindowHeight()) );
-            ImGui::SameLine();
-            static int newResolution[2] = {0, 0};
-            if(ImGui::Button("Change##resolution")){
-                newResolution[0] = ofGetWindowWidth();
-                newResolution[1] = ofGetWindowHeight();
-                ImGui::OpenPopup("ResolutionChanger");
-            }
-            if(ImGui::BeginPopup("ResolutionChanger")){
-                ImGui::InputInt("Width", &newResolution[0]);
-                ImGui::InputInt("Height", &newResolution[1]);
-                if(ImGui::Button("Apply")){
-                    ImGui::CloseCurrentPopup();
-                    ofSetWindowShape(newResolution[0], newResolution[1]);
-                }
-
-                // VSync setter (OF provides no getter...)
-                ImGui::Text("V-Sync : ");
-                ImGui::SameLine();
-                if(ImGui::Button("Disable")){
-                    ofSetVerticalSync(false);
-                }
-                ImGui::SameLine();
-                if(ImGui::Button("Enable")){
-                    ofSetVerticalSync(true);
-                }
-                ImGui::EndPopup();
-            }
-
-#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-            canvas.drawGuiSettings();
-//            ImGui::Text("FPS: %.0f", blend2d.getFps() );
-//            ImGui::Text("Timeframe: %.3f sec", blend2d.getSyncTime() );
-//            ImGui::PlotHistogram("##blend2d_fps_histogram", &blend2d.getFpsHist(), ofxBlend2D_FPS_HISTORY_SIZE, 0, NULL, 0.f, 75.f, ImVec2(0,30));
-#endif
-            //ImGui::Unindent();
-
-            //
-            ImGui::EndMenu();
-        } // end Status menu
+        }
 
         if(ImGui::BeginMenu("Modules")){
-            ImGui::SeparatorText("ofxSimpleApp");
-#ifdef ofxSA_DEBUG
-            ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
-            ImGui::Checkbox("Show ImGui Debug Window", &bShowImGuiDebugWindow);
-            ImGui::Checkbox("Show ImGui Demo Window", &bShowImGuiDemo);
-#endif
-
 #ifdef ofxSA_SYPHON_OUTPUT
             ImGui::SeparatorText("Syphon");
             ImGui::Checkbox("Enable syphon output", &bEnableSyphonOutput);
@@ -722,8 +720,39 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
         // View menu
         if(ImGui::BeginMenu("View")){
-            ImGui::Checkbox("Timeline", &bShowTimeClockWindow);
-            ImGui::Separator();
+            if(ImGui::BeginMenu("Gui")){
+                if(ImGui::MenuItem("Hide GUI", SHORTCUT_FUNC "+G")){
+                    bShowGui = false;
+                    updateCursorForGui();
+                }
+                if(ImGui::MenuItem("Toggle full screen", SHORTCUT_FUNC "+F")){
+                    ofToggleFullscreen();
+                    onImguiViewportChange();
+                }
+                ImGui::EndMenu();
+            }
+
+            // Debug
+            if(ImGui::BeginMenu("Debug")){
+                if(ImGui::Checkbox("Show log window", &bShowLogs) && bShowLogs){
+                    ImGui::SetWindowFocus("Logger");
+                }
+
+#ifdef ofxSA_DEBUG
+                ImGui::SeparatorText("ImGui Develop");
+                ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
+                ImGui::Checkbox("Show ImGui Debug Window", &bShowImGuiDebugWindow);
+                ImGui::Checkbox("Show ImGui Demo Window", &bShowImGuiDemo);
+#endif
+                ImGui::EndMenu();
+            }
+
+#ifdef ofxSA_TIMELINE_ENABLE
+            if(ImGui::Checkbox("Show Timeline", &bShowTimeClockWindow) && bShowTimeClockWindow){
+                ImGui::SetWindowFocus("Timeline");
+            }
+#endif
+
             ImGui::EndMenu();
         }
 
