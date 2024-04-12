@@ -144,6 +144,7 @@ class ofxSATimeline {
 
     // Starts the timeline (aka. play())
     void start();
+    void startNextFrame();
 
     // Function to pause the timeline
     void pause();
@@ -174,7 +175,8 @@ class ofxSATimeline {
     // At the begining of your frame, tick this. Todo: after frame so update() can prapare data for the next frame ?
     void tickFrame();
 
-    void tickPlayHead();
+private:
+    void tickPlayHead(const bool isNewFrame = true);
 
     // Updates playhead for looping
     void checkLoops();
@@ -182,8 +184,8 @@ class ofxSATimeline {
     // Updates internals and ramps according to playhead
     void updateInternals();
 
+public:
     // todo: make private
-    void tick();
 
     double getElapsedSeconds() const;
 
@@ -219,8 +221,12 @@ class ofxSATimeline {
 //        return std::fmod(beatsElapsed, timeSignature.notesPerBeat) + 1.0; // Beats are 1-indexed
 //    }
 
+    // Utils / getters
     bool isPlaying() const;
+    ofxSATimelineMode getPlayMode() const;
+    void setPlayMode(ofxSATimelineMode _mode);
 
+    // ImGui Helpers
     void drawImGuiPlayControls(bool horizontalLayout = true);
 
     void drawImGuiTimelineWindow(bool* p_open = nullptr);
@@ -238,6 +244,7 @@ private:
     ofxSATimelineLoopMode loopMode;
     double playSpeed;
     ofxSATimelineMode playbackMode;
+    bool bStartNextFrame = false;
 
     // Counters
     ofxSATimeCounters counters;

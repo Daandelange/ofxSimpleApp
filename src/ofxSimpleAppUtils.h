@@ -73,6 +73,10 @@ struct IdleTimer {
         float lastActiveTime = 0.f;
 };
 
+// Helper for formatting and incrementing file names not to overwrite them
+// Returns a unique file name or an empty string (+ logs error)
+std::string getNewFileName(const char* baseDir, const char* baseName, const char* extensionWithDot, bool bRelativeToOfDataPath=true, const char* _incDelimiter="_");
+
 // C+ smoothstep implementation
 // Todo: Unused ?
 //#include <math.h>

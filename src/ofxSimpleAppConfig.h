@@ -258,6 +258,16 @@
 #   ifndef ofxSA_TEXRECORDER_DEFAULT_CODEC
 #       define ofxSA_TEXRECORDER_DEFAULT_CODEC "libx264"
 #   endif
+#   ifndef ofxSA_TEXRECORDER_DEFAULT_FILENAME
+#       define ofxSA_TEXRECORDER_DEFAULT_FILENAME (ofToString("Recording-")+ofToString(ofGetYear())+"-"+ofToString(ofGetMonth())+"-"+ofToString(ofGetDay()))
+#   endif
+#   ifndef ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER
+#       define ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER "recordings"
+#   endif
+// tmp enabled by default
+#   ifndef ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
+#       define ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
+#       endif
 #endif
 
 // Todo :

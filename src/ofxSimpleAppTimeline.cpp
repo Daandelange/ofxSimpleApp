@@ -162,6 +162,10 @@ void ofxSATimeline::start() {
     //std::cout << "Timeline started." << std::endl;
 }
 
+void ofxSATimeline::startNextFrame(){
+    bStartNextFrame = true;
+}
+
 // Function to pause the timeline
 void ofxSATimeline::pause() {
     if (!paused) {
@@ -321,22 +325,48 @@ double ofxSATimeline::getPlaySpeed() const {
 
 // Optional, to update realtime modes in-between frames
 void ofxSATimeline::tickUpdate(){
-    // tick();
+    // If not playing or paused, do nothing
+    if (!playing || paused) {
+        return;
+    }
+
+    tickPlayHead(false);
+    checkLoops();
+    updateInternals();
 }
 
 // At the begining of your frame, tick this. Todo: after frame so update() can prapare data for the next frame ?
 void ofxSATimeline::tickFrame(){
-    tick();
+    if(bStartNextFrame){
+        start();
+        bStartNextFrame = false;
+        return;
+    }
+
+    // If not playing or paused, do nothing
+    if (!playing || paused) {
+        return;
+    }
+
+    tickPlayHead(true);
+    checkLoops();
+    updateInternals();
 }
 
-void ofxSATimeline::tickPlayHead(){
+// Updates the playhead and framecount to the most actual onces
+void ofxSATimeline::tickPlayHead(const bool isNewFrame){
+    // If not playing or paused, do nothing
+    if (!playing || paused) {
+        return;
+    }
+
+    // Incremment rendered frames
+    if(isNewFrame) counters.frameCount++;
+
     auto current_time = std::chrono::high_resolution_clock::now();
     //auto elapsed_time = std::chrono::duration<double>(current_time - last_frame_time) * playSpeed;
 
-    // Incremment rendered frames
-    counters.frameCount++;
-
-    // Update playhead
+    // Update playhead for rt modes
     if (playbackMode == ofxSATimelineMode_RealTime_Absolute || playbackMode == ofxSATimelineMode_RealTime_Relative) {
 
         //auto elapsed_time = std::chrono::duration<double>(current_time - ((playbackMode == ofxSATimelineMode_RealTime_Absolute)?start_time:last_frame_time)) * playSpeed;
@@ -357,15 +387,13 @@ void ofxSATimeline::tickPlayHead(){
             counters.playhead += elapsed_time.count();
         }
     }
+    // Update playhead for offline mode
     else /*if (playbackMode == ofxSATimelineMode_Offline)*/ {
-        double frame_time = 1.0 / (double)fps;
-        counters.playhead = frame_time * (double)(counters.frameNum+(1*playSpeed));
-        //std::cout << "frameNum=" << frameNum << " \t ph=" << playhead << " --> " << (playhead / frame_time)<<std::endl;
-        //std::cout << "frameNum=" << playhead / frame_time <<std::endl;
-
-    //            if (loopMode == ofxSATimelineLoopMode::LoopOnce && loop_complete) {
-    //                playing = false;
-    //            }
+        if(isNewFrame){
+            double frame_time = 1.0 / (double)fps;
+            // Add 1 frame's time to the playhead, will compute the framenum from that.
+            counters.playhead = frame_time * (double)(counters.frameNum+(1.0*playSpeed));
+        }
     }
 
     // Remember (for rt modes)
@@ -415,19 +443,9 @@ void ofxSATimeline::updateInternals(){
     timeRamps.updateRamps(counters.playhead, timeSignature);
 }
 
-// todo: make private
-void ofxSATimeline::tick() {
-    // If not playing or paused, do nothing
-    if (!playing || paused) {
-        return;
-    }
 
-    tickPlayHead();
 
-    checkLoops();
 
-    updateInternals();
-}
 
 double ofxSATimeline::getElapsedSeconds() const {
     //        auto current_time = std::chrono::high_resolution_clock::now();
@@ -483,6 +501,14 @@ unsigned int ofxSATimeline::getFps() const {
 
 bool ofxSATimeline::isPlaying() const {
     return playing;
+}
+
+ofxSATimelineMode ofxSATimeline::getPlayMode() const {
+    return playbackMode;
+}
+
+void ofxSATimeline::setPlayMode(ofxSATimelineMode _mode) {
+    playbackMode = _mode;
 }
 
 void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){

@@ -173,13 +173,22 @@ protected:
 
 #ifdef ofxSA_TEXRECORDER_ENABLE
 	public:
-		bool startRecordingCanvas();
-		bool stopRecordingCanvas();
+		virtual bool startRecordingCanvas();
+		virtual bool stopRecordingCanvas();
+		enum TexRecorderMode_ {
+			TexRecorderMode_FFMPEG = 0,
+			TexRecorderMode_PNG = 1,
+		} texRecorderMode = TexRecorderMode_PNG;
 	protected:
 		ofxFFmpegRecorder m_Recorder;
 		bool isRecordingCanvas = false;
-		ofxFastFboReader fastFboReader = {3};
-		void recordCanvasFrame();
+		ofxFastFboReader fastFboReader = {1};
+		virtual void recordCanvasFrame(); // You need to implement this once to send your frames
 		ofPixels recordedPixels;
+		std::string recordingTargetName = ofxSA_TEXRECORDER_DEFAULT_FILENAME;
+		std::string curRecordingName = "";
+		bool bRecordAudioToo = false; // Unsupported yet ???
+		std::string getNextRecordingName();
+		static bool formatPngFilePath(std::string& _string, unsigned int _frame);
 #endif
 };

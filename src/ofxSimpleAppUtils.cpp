@@ -17,6 +17,45 @@ std::ostream& operator << (std::ostream& _stream, const glm::uvec2& _vec2){
     return _stream;
 }
 
+// - - - - - - - - - -
+std::string getNewFileName(const char* baseDir, const char* baseName, const char* extensionWithDot, bool bRelativeToOfDataPath, const char* _incDelimiter){
+
+    // Open the directory
+    ofDirectory fileDir(bRelativeToOfDataPath?ofToDataPath(baseDir, true):baseDir);
+    // Ensure dir exists !
+    if(!fileDir.exists()){
+        fileDir.create();
+    }
+    else if (!fileDir.isDirectory() || !fileDir.canRead()){
+        ofLogError("getNewFileName()") << "The directory path exists but there is a problem. (is it a directory? is it readable ?) Aborting !";
+        return "";
+    }
+
+    // Find unique filename
+    char newFileName[256]; // checkme: enough for long filepaths ??
+    unsigned int increment = 0u;
+    do {
+        // Basename
+        std::string tmpName = baseName;
+
+        // Add next increment
+        if(increment>0){
+            tmpName += _incDelimiter;
+            tmpName += ofToString(increment);
+        }
+        increment ++;
+
+        // Add extension
+        tmpName += extensionWithDot;
+
+        // Clear previous data + copy new
+        strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
+        tmpName.copy(newFileName, IM_ARRAYSIZE(newFileName));
+    } while (ofFile(fileDir.path()+newFileName).exists());
+
+    return newFileName;
+}
+
 // Helper to get size of a fixed array
 template<class T, size_t N>
 constexpr size_t array_size(T (&)[N]) { return N; }

@@ -119,8 +119,8 @@ void ofxSimpleApp::setup(){
     #if defined(TARGET_OSX)
     m_Recorder.setFFmpegPath(ofToDataPath("ffmpeg/osx/ffmpeg"));
     #elif defined(TARGET_WIN32)
-	m_Recorder.setFFmpegPath(ofToDataPath("ffmpeg/osx/ffmpeg"));
-    m_Recorder.setFFmpegPath(ofToDataPath("C:/dev/msys64/ThirdParty/ffmpeg/ffmpeg_build/bin/ffmpeg.exe", true));
+    m_Recorder.setFFmpegPath(ofToDataPath("ffmpeg/win/ffmpeg.exe"));
+    //m_Recorder.setFFmpegPath(ofToDataPath("C:/dev/msys64/ThirdParty/ffmpeg/ffmpeg_build/bin/ffmpeg.exe", true));
     #endif
 
     // Set default codec
@@ -142,6 +142,7 @@ void ofxSimpleApp::exit(){
 //--------------------------------------------------------------
 void ofxSimpleApp::update(){
     // FPS plotting
+    // Todo: Use a more precise measure ? Measure frame time too ?
     syncHistogram<float, double>(FPSHistory, ofGetFrameRate());
 
 #ifdef ofxSA_TIMELINE_ENABLE
@@ -181,55 +182,188 @@ void ofxSimpleApp::publishSyphonTexture(){
 
 //--------------------------------------------------------------
 #ifdef ofxSA_TEXRECORDER_ENABLE
-bool ofxSimpleApp::startRecordingCanvas(){
-    // Set new target file
+
+std::string glFormatToFFmpeg(int glFormat) {
+    // (Untested formats are commented)
+    static const std::map<int, std::string> formatMap = {
+        // Common formats
+        {GL_ALPHA, "a8"},
+        {GL_RGB, "rgb24"},
+        {GL_RGBA, "rgba"},
+        {GL_BGR, "bgr24"},
+        {GL_BGRA, "bgra"},
+//        {GL_RED, "r8"},
+//        {GL_GREEN, "g8"},
+//        {GL_BLUE, "b8"},
+//        {GL_RG, "rg8"},
+        {GL_LUMINANCE, "gray"},
+//        {GL_LUMINANCE_ALPHA, "ya8"},
+
+        // 32-bit integer mappings
+//        {GL_RGBA_INTEGER, "rgba32"},
+//        {GL_BGRA_INTEGER, "bgra32"},
+//        {GL_RGB_INTEGER, "rgb32"},
+//        {GL_BGR_INTEGER, "bgr32"},
+//        {GL_RED_INTEGER, "r32"},
+//        {GL_GREEN_INTEGER, "g32"},
+//        {GL_BLUE_INTEGER, "b32"},
+//        {GL_RG_INTEGER, "rg32"},
+
+        // Float mappings
+//        {GL_R32F, "gray32f"},
+//        {GL_RG32F, "ya32f"},
+//        {GL_RGB32F, "rgb32f"},
+//        {GL_RGBA32F, "rgba32f"},
+    };
+
+    auto it = formatMap.find(glFormat);
+    if (it != formatMap.end()) {
+        return it->second;
+    } else {
+        return "";//"unsupported_format_mapping";
+    }
+}
+
+std::string ofxSimpleApp::getNextRecordingName() {
+    // Set new target file if empty
+    if(recordingTargetName.length()<1){
+        recordingTargetName = ofxSA_TEXRECORDER_DEFAULT_FILENAME;
+    }
+
+    // Todo: What about Linux ?
+    const char* extension = {(texRecorderMode == TexRecorderMode_PNG) ? "/frame-000000.png" :
 #   if defined(TARGET_OSX)
-    m_Recorder.setOutputPath( ofToDataPath(ofGetTimestampString() + ".mp4", true ));
+            ".mp4"
 #   else
-    m_Recorder.setOutputPath( ofToDataPath(ofGetTimestampString() + ".avi", true ));
+            ".avi"
 #   endif
+    };
 
-    // Recording settings
-    m_Recorder.setVideoCodec(ofxSA_TEXRECORDER_DEFAULT_CODEC);
-    m_Recorder.setInputPixelFormat("rgba");
-    // example test with h264_nvenc
-    //m_Recorder.setVideoCodec("h264_nvenc");
-    m_Recorder.setBitRate(8000);
+    // Grab new unique filename from requested name
+    return getNewFileName(ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER, recordingTargetName.c_str(), extension, true, "_");
+}
 
-    isRecordingCanvas = m_Recorder.startCustomRecord();
+bool ofxSimpleApp::formatPngFilePath(std::string& _string, unsigned int _frame){
+    std::size_t pos = _string.find_last_of("000000.png"); // Note: returns end of found string
+    if(pos != std::string::npos){
+        snprintf(&_string[pos-6u-3u], 6u+4u+1u, "%06u.png", _frame);
+        return true;
+    }
+    return false;
+}
+
+bool ofxSimpleApp::startRecordingCanvas(){
+    if(!canvas.fbo.getTexture().isAllocated()){
+        ofLogNotice("ofxSimpleApp::startRecordingCanvas()") << "Can't start recording, the canvas is not allocated !";
+        return false;
+    }
+
+    auto& tl = ofxSA_TIMELINE_GET(timeline);
+
+    // Set new target file
+    curRecordingName = ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER;
+    curRecordingName += "/";
+    curRecordingName += getNextRecordingName();
+
+    if(texRecorderMode == TexRecorderMode_FFMPEG){
+        m_Recorder.setOutputPath(ofToDataPath(curRecordingName));
+
+        // Recording settings
+        m_Recorder.setVideoCodec(ofxSA_TEXRECORDER_DEFAULT_CODEC);
+        auto cnvPxFormat = canvas.fbo.getTexture().getTextureData().glInternalFormat;
+        auto ffmpegFormat = glFormatToFFmpeg(cnvPxFormat);
+        if(ffmpegFormat.length()<1)
+            ofLogWarning("ofxSimpleApp::startRecordingCanvas()") << "The canvas has an unsupported pixel format, you have to map your GL_format to the ffmpeg pixel format !";
+        m_Recorder.setInputPixelFormat(ffmpegFormat);
+        // example test with h264_nvenc
+        //m_Recorder.setVideoCodec("h264_nvenc");
+        m_Recorder.setBitRate(8000); // Dodo: parameterize this
+        m_Recorder.setRecordAudio(bRecordAudioToo); // todo: make optional
+        m_Recorder.setCaptureDuration(tl.getDuration());
+        m_Recorder.setFps(tl.getFps());
+        m_Recorder.setWidth(canvas.getCanvasWidth());
+        m_Recorder.setHeight(canvas.getCanvasHeight());
+
+        isRecordingCanvas = m_Recorder.startCustomRecord();
+    }
+    else if(texRecorderMode == TexRecorderMode_PNG){
+        // Create folder if it doesn't exist yet
+        ofDirectory dir = ofDirectory(ofFilePath::getEnclosingDirectory(curRecordingName, true));
+        if(!dir.exists()){
+            dir.create(false);
+        }
+        ofLogNotice("ofxSimpleApp::startRecordingCanvas()") << "Start recording PNG to destination = " << dir.path() << std::endl;
 
     return isRecordingCanvas;
 }
 bool ofxSimpleApp::stopRecordingCanvas(){
-    m_Recorder.stop();
+    if(texRecorderMode == TexRecorderMode_FFMPEG){
+        m_Recorder.stop();
+    }
+    else if(texRecorderMode == TexRecorderMode_PNG){
+        // Nothing to stop
+
+    }
     isRecordingCanvas = false;
 
     return isRecordingCanvas == false;
 }
+
 void ofxSimpleApp::recordCanvasFrame(){
     //static ofPixels mPix;
-    if (m_Recorder.isRecording()) {
-		if (isRecordingCanvas && canvas.fbo.isAllocated()) {
-            // Read FBO to pixels
-            //canvas.fbo.updateTexture(0);
-			canvas.fbo.readToPixels(recordedPixels);
-            fastFboReader.setAsync(false);
-            if(true){//} fastFboReader.readToPixels(canvas.fbo, recordedPixels, OF_IMAGE_COLOR_ALPHA)){
-            //if(fastFboReader.readToPixels(canvas.fbo, recordedPixels, GL_RGBA32F)){
-                ofSaveImage(recordedPixels, ofToDataPath("testScreenShot.png"));
+    if (isRecordingCanvas && canvas.fbo.isAllocated()) {
+        // Read FBO to pixels
+#ifdef ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
+        bool bDataLoaded = true;
+        int glFormat = canvas.fbo.getTexture().texData.glInternalFormat;
+        fastFboReader.setAsync(false);
+        fastFboReader.readToPixels(canvas.fbo, recordedPixels, ofGetImageTypeFromGLType(glFormat));
+#else
+        //canvas.fbo.updateTexture(0);
+        canvas.fbo.readToPixels(recordedPixels); // slow OF way
+        bool bDataLoaded = true;
+#endif
 
-                // Add frame
-                if (recordedPixels.getWidth() > 0 && recordedPixels.getHeight() > 0) {
-                    m_Recorder.addFrame(recordedPixels);
+#ifdef ofxSA_TIMELINE_ENABLE
+        unsigned int curFrame = ofxSA_TIMELINE_GET(timeline).getFrameNum();
+        bool realTimeRecording = ofxSA_TIMELINE_GET(timeline).getPlayMode()!=ofxSATimelineMode_Offline;
+#else
+        unsigned int curFrame = ofGetFrameNum();
+        bool realTimeRecording = true;
+#endif
+
+        // Got a frame ?
+        if(
+            // Got data ?
+            bDataLoaded &&
+            // Got valid pixels ?
+            (recordedPixels.getWidth() > 0 && recordedPixels.getHeight() > 0)
+        ){
+            // Route the pixels to the selected recorder...
+            if (texRecorderMode == TexRecorderMode_FFMPEG){
+                if(m_Recorder.isRecording()) {
+                    if(!m_Recorder.addFrame(recordedPixels, realTimeRecording)){
+                        ofLogError("ofxSimpleApp::recordCanvasFrame()") << "FFMpeg refused to add the frame ("<< curFrame << ") data to the sequence.";
+                    }
                 }
-                
             }
-            else {
-                std::cout << "failed readToPixels !" << std::endl;
-                //canvas.fbo.readToPixels(mPix); // fallback on native pixels grabbing
+            else if(texRecorderMode == TexRecorderMode_PNG){
+                std::string frameFile = curRecordingName;
+                if(formatPngFilePath(frameFile, curFrame)){
+                    if(!ofSaveImage(recordedPixels, ofToDataPath(frameFile, true))){
+                        ofLogError("ofxSimpleApp::recordCanvasFrame()") << "Couldn't save frame " << curFrame << " as a PNG !";
+                    }
+                }
+                else {
+                    ofLogError("ofxSimpleApp::recordCanvasFrame()") << "Couldn't format the PNG file path for frame " << curFrame << ".";
+                }
             }
-            
-		}
+        }
+        // Error grabbing frame data
+        else {
+            // Todo: ofLogError....
+            //canvas.fbo.readToPixels(mPix); // fallback on native pixels grabbing
+        }
 	}
 }
 #endif
@@ -690,8 +824,38 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
 #ifdef ofxSA_TEXRECORDER_ENABLE
             ImGui::SeparatorText("Texture Recorder");
-            
-            ImGui::BeginDisabled(true);
+
+            // Mode
+            if(isRecordingCanvas) ImGui::BeginDisabled();
+            static const char* recModes[] = {
+                "ffmpeg",
+                "PNG"
+            };
+            int curMode = texRecorderMode;
+            if(ImGui::Combo("Recording Mode", &curMode, recModes, IM_ARRAYSIZE(recModes))){
+                texRecorderMode = static_cast<ofxSimpleApp::TexRecorderMode_>(curMode);
+            }
+            if(isRecordingCanvas) ImGui::EndDisabled();
+
+            // Destination
+            char newFileName[100];
+            strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
+            recordingTargetName.copy(newFileName, IM_ARRAYSIZE(newFileName));
+            if(ImGui::InputText("Target name", newFileName, IM_ARRAYSIZE(newFileName))){
+                recordingTargetName = newFileName;
+            }
+
+            // Cur/Next filename
+            if(isRecordingCanvas){
+                ImGui::TextDisabled("Current recording : %s", curRecordingName.c_str());
+            }
+            else {
+                const std::string nextRec = getNextRecordingName();//getNewFileName(ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER, recordingTargetName.c_str(), extension, true, "_");
+                ImGui::TextDisabled("Next recording    : %s", nextRec.c_str());
+            }
+
+            // Begin recording
+            ImGui::BeginDisabled();
             ImGui::Checkbox("Recording state", &isRecordingCanvas);
             ImGui::EndDisabled();
             ImGui::SameLine();
@@ -705,14 +869,22 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                     stopRecordingCanvas();
                 }
             }
-            ImGui::Text("FFmpeg   : %s", m_Recorder.getFFmpegPath().c_str());
-            ImGui::Text("Bitrate  : %u", m_Recorder.getBitRate());
-            ImGui::Text("FPS      : %.2f", m_Recorder.getFps());
-            ImGui::Text("Width    : %.0f", m_Recorder.getWidth());
-            ImGui::Text("Height   : %.0f", m_Recorder.getHeight());
-            ImGui::Text("Duration : %.2f / %.2f", m_Recorder.getCaptureDuration(), m_Recorder.getRecordedDuration());
-            ImGui::Text("File     : %s", m_Recorder.getOutputPath().c_str());
-            ImGui::Text("Codec    : %s", m_Recorder.getVideoCodec().c_str());
+
+            // FFMPeg details
+            if(texRecorderMode==TexRecorderMode_FFMPEG){
+                ImGui::Text("FFmpeg   : %s", m_Recorder.getFFmpegPath().c_str());
+                ImGui::Text("Bitrate  : %u", m_Recorder.getBitRate());
+                ImGui::Text("FPS      : %.2f", m_Recorder.getFps());
+                ImGui::Text("Width    : %.0f", m_Recorder.getWidth());
+                ImGui::Text("Height   : %.0f", m_Recorder.getHeight());
+                ImGui::Text("Duration : %.2f / %.2f", m_Recorder.getCaptureDuration(), m_Recorder.getRecordedDuration());
+                ImGui::Text("File     : %s", m_Recorder.getOutputPath().c_str());
+                ImGui::Text("Codec    : %s", m_Recorder.getVideoCodec().c_str());
+            }
+            // PNG details
+            else {
+                ImGui::TextWrapped("In PNG mode, sequential PNG files will be written to the destination folder.\n One folder per recording.");
+            }
 #endif
 
             ImGui::EndMenu();
