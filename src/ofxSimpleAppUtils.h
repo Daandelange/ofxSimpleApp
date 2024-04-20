@@ -8,6 +8,10 @@
 #include "ofxImGui.h"
 #include "ofxImGuiLoggerChannel.h"
 
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+#include "ofxTimeMeasurements.h"
+#endif
+
 //void ofDrawBitMapStringHighlight(const std::string& _string, const ofRectangle& _rect){
 //    ofDrawBitmapStringHighlight(_string, _rect.getTopLeft(),)
 //}
@@ -32,6 +36,12 @@ int ofxSimpleAppGenericMain(){
 	settings.setSize(ofxSA_WINDOW_WIDTH, ofxSA_WINDOW_HEIGHT);
 	settings.title = ofxSA_APP_NAME;
 	auto window = ofCreateWindow(settings);
+
+	// Time measurements setup
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+	TIME_SAMPLE_ADD_SETUP_HOOKS();
+	TIME_SAMPLE_SET_FRAMERATE(ofxSA_FPS_CAP);
+#endif
 
 	// Run App
 	auto app = std::make_shared<ofAppClass>();

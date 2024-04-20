@@ -11,6 +11,10 @@
 #	include ofxSA_GUI_THEME_FILE
 #endif
 
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+#include "ofxTimeMeasurements.h"
+#endif
+
 #include "ofxSimpleAppUtils.h"
 #include "imgui_internal.h" // <-- advanced docking features from imgui internals...
 //#include "ofGraphics.h" // for GL info stuff ?
@@ -71,6 +75,11 @@ void ofxSimpleApp::setup(){
 	ofSetFrameRate(ofxSA_FPS_CAP);
 #endif
 
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+	//specify where the widget is to be drawn
+	TIME_SAMPLE_SET_DRAW_LOCATION( TIME_MEASUREMENTS_BOTTOM_RIGHT );
+	TIME_SAMPLE_DISABLE_AVERAGE();	//disable averaging
+	TIME_SAMPLE_SET_REMOVE_EXPIRED_THREADS(true); //inactive threads will be dropped from the table
 	// Window Title
 	// Done in main.cpp, useless here
 	//ofSetWindowTitle(ofxSA_APP_NAME);
@@ -399,6 +408,9 @@ void ofxSimpleApp::drawGui(){
 // ---
 void ofxSimpleApp::renderGui(){
     if(bShowGui){
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+        TS_SCOPE("GUI Compositing");
+#endif
         gui.begin();
         drawGui();
 
@@ -408,7 +420,14 @@ void ofxSimpleApp::renderGui(){
         if(bShowImGuiMetrics)       ImGui::ShowMetricsWindow(&bShowImGuiMetrics);
 
         gui.end();
+
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TSGL_START("GUI Rendering");
+#endif
         gui.draw();
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TSGL_STOP("GUI Rendering");
+#endif
     }
 }
 
@@ -1494,26 +1513,53 @@ bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
 
 // Populate XML for saving
 bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
+    bool ret = true;
+
     // Version
     _node.append_attribute("version_maj").set_value(ofxSA_VERSION_MAJOR);
     _node.append_attribute("version_min").set_value(ofxSA_VERSION_MINOR);
     _node.append_attribute("version_patch").set_value(ofxSA_VERSION_PATCH);
 
     // App name, just for info
-    _node.append_child("app_name").append_child(pugi::node_pcdata).set_value(ofxSA_APP_NAME);
+    _node.append_child("app_name").text().set(ofxSA_APP_NAME);
 
     // Theme
     // todo: support custom themes
-    _node.append_child("gui_theme").append_child(pugi::node_pcdata).set_value(std::to_string(bUseDarkTheme?ofxSA_GUI_THEME_DARK:ofxSA_GUI_THEME_LIGHT).c_str());
+    _node.append_child("gui_theme").text().set(bUseDarkTheme?ofxSA_GUI_THEME_DARK:ofxSA_GUI_THEME_LIGHT);
+
+    // Logging
+    _node.append_child("show_log_window").text().set(bShowLogs?true:false);
+    _node.append_child("log_level").text().set(ofGetLogLevel());
 
     // todo: targetFPS, resolution, fullscreen, etc.
 
+    // Canvas
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    pugi::xml_node canvasSettingsNode = _node.append_child("canvas");
+    ret *= canvas.populateXmlNode(canvasSettingsNode);
+#endif
+
+    // Todo: Timeline settings
+#ifdef ofxSA_TIMELINE_ENABLE
+    pugi::xml_node timelineSettingsNode = _node.append_child("timeline");
+    ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
+    ret *= timelineSettingsNode && tl.populateXmlNode(timelineSettingsNode);
+#endif
+
+    // todo: Recording settings
+#ifdef ofxSA_TEXRECORDER_ENABLE
+    pugi::xml_node texRecorderSettingsNode = _node.append_child("texture_recorder");
+    texRecorderSettingsNode.append_child("recorder_mode").text().set(texRecorderMode);
+#endif
+
     // Done
-    return true;
+    return ret;
 }
 
 // Retrieve data from XML for saving
 bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
+    bool ret = true;
+
     unsigned int vMaj = _node.attribute("version_maj").as_uint();
     unsigned int vMin = _node.attribute("version_min").as_uint();
     unsigned int vPatch = _node.attribute("version_patch").as_uint();
@@ -1532,14 +1578,48 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
     }
 
     // Grab theme
-    const char* theme = _node.child("gui_theme").child_value();
-    if(theme && theme[0] != '\0'){
-        if(ofxSA_GUI_THEME_DARK == std::stoi(theme)) bUseDarkTheme = true;
-        else if(ofxSA_GUI_THEME_LIGHT == std::stoi(theme)) bUseDarkTheme = false;
-        //else if(ofxSA_GUI_THEME_CUSTOM = theme) bUseDarkTheme = true;
+    switch(_node.child("gui_theme").text().as_int(ofxSA_GUI_THEME_DEFAULT)){
+        case ofxSA_GUI_THEME_LIGHT:
+            bUseDarkTheme = false;
+        break;
+        case ofxSA_GUI_THEME_DARK:
+        default:
+            bUseDarkTheme = true;
+        break;
+    }
+    loadImGuiTheme();
+
+    // Logging window visibility
+    bShowLogs = _node.child("show_log_window").text().as_bool(false);
+
+    // Log level
+    if(pugi::xml_node lvlChild = _node.child("log_level")){
+        ofLogLevel lvl = static_cast<ofLogLevel>(lvlChild.text().as_int((int)OF_LOG_NOTICE));
+        ofSetLogLevel(lvl);
     }
 
-    return true;
+    // Canvas
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    pugi::xml_node canvasSettingsNode = _node.child("canvas");
+    ret *= canvasSettingsNode && canvas.retrieveXmlNode(canvasSettingsNode);
+#endif
+
+    // Todo: Timeline settings
+#ifdef ofxSA_TIMELINE_ENABLE
+    ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
+    pugi::xml_node timelineSettingsNode = _node.child("timeline");
+    ret *= timelineSettingsNode && tl.retrieveXmlNode(timelineSettingsNode);
+#endif
+
+    // todo: Recording settings
+#ifdef ofxSA_TEXRECORDER_ENABLE
+    pugi::xml_node texRecorderSettingsNode = _node.child("texture_recorder");
+    if(pugi::xml_node modeChild = texRecorderSettingsNode.child("recorder_mode")){
+        texRecorderMode = static_cast<TexRecorderMode_>(modeChild.text().as_int((int)TexRecorderMode_PNG));
+    }
+#endif
+
+    return ret;
 }
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE

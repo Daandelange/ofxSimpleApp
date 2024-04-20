@@ -9,6 +9,10 @@
 #include "imgui.h"
 #include "ImHelpers.h" // For ImVec & glm glue
 
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+#include "pugixml.hpp"
+#endif
+
 // An FBO with  repaint support ?
 
 
@@ -31,7 +35,7 @@ struct ContentResizeArgs : public ofEventArgs {
 
 class ofxSimpleAppCanvas {
     public:
-        ofxSimpleAppCanvas(int _width=ofGetWidth(), int _height=ofGetHeight());
+        ofxSimpleAppCanvas(unsigned int _width=ofGetWidth(), unsigned int _height=ofGetHeight());
 
         void setCanvasSize(unsigned int _width, unsigned int _height, float _scale=1.f);
 
@@ -62,6 +66,11 @@ class ofxSimpleAppCanvas {
 
         bool bDrawScreenRect = true;//false;
         CanvasDrawMode contentDrawMode = CanvasDrawMode_Manual;
+
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+		bool populateXmlNode(pugi::xml_node& _node);
+		bool retrieveXmlNode(pugi::xml_node& _node);
+#endif
 
     private:
         unsigned int width = 0;

@@ -10,6 +10,10 @@
 #include "imgui.h"
 #include "ofxSimpleAppUtils.h"
 
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+#include "pugixml.hpp"
+#endif
+
 // - - - - - - - - - -
 
 enum ofxSATimelineMode {
@@ -148,6 +152,8 @@ class ofxSATimeline {
 
     // Function to pause the timeline
     void pause();
+    bool isPaused();
+    bool isRunning();
 
     // Function to resume the timeline
     void resume();
@@ -230,6 +236,11 @@ public:
     void drawImGuiPlayControls(bool horizontalLayout = true);
 
     void drawImGuiTimelineWindow(bool* p_open = nullptr);
+
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+	bool populateXmlNode(pugi::xml_node& _node);
+	bool retrieveXmlNode(pugi::xml_node& _node);
+#endif
 
 private:
     // Composition Settings

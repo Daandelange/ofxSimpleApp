@@ -10,7 +10,7 @@ ContentResizeArgs::ContentResizeArgs(unsigned int _width, unsigned int _height, 
 
 
 
-ofxSimpleAppCanvas::ofxSimpleAppCanvas(int _width, int _height){
+ofxSimpleAppCanvas::ofxSimpleAppCanvas(unsigned int _width, unsigned int _height){
     setScreenRect();
     setCanvasSize(_width, _height);
 }
@@ -281,3 +281,34 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
     ImGui::PopStyleColor();
     ImGui::PopStyleVar(4);
 }
+
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+// Load + Save
+bool ofxSimpleAppCanvas::populateXmlNode(pugi::xml_node &_node){
+    //pugi::xml_node shapesNode = _node.append_child("shapes");
+
+    // Resolution
+    _node.append_child("width").text().set(width);
+    _node.append_child("height").text().set(height);
+    _node.append_child("scale").text().set(scale);
+
+    return true;
+}
+
+bool ofxSimpleAppCanvas::retrieveXmlNode(pugi::xml_node &_node){
+    pugi::xml_node wNode = _node.child("width");
+    pugi::xml_node hNode = _node.child("height");
+    pugi::xml_node sNode = _node.child("scale");
+
+    if(wNode && hNode && sNode){
+        setCanvasSize(
+            wNode.text().as_uint(),
+            hNode.text().as_uint(),
+            sNode.text().as_float()
+        );
+
+        return true;
+    }
+    return false;
+}
+#endif

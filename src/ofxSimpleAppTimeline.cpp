@@ -175,6 +175,14 @@ void ofxSATimeline::pause() {
     }
 }
 
+bool ofxSATimeline::isPaused(){
+    return paused;
+}
+
+bool ofxSATimeline::isRunning(){
+    return playing && !paused;
+}
+
 // Function to resume the timeline
 void ofxSATimeline::resume() {
     if (playing && paused) {
@@ -970,3 +978,71 @@ void ofxSATimeline::reset() {
 
     timeRamps.updateRamps(counters.playhead, timeSignature);
 }
+
+// Load + Save
+#ifdef ofxSA_XML_ENGINE_PUGIXML
+bool ofxSATimeline::populateXmlNode(pugi::xml_node &_node){
+
+    // FPS
+    _node.append_child("fps").text().set(fps);
+
+    // Duration
+    _node.append_child("duration").text().set(duration);
+
+    // LoopMode
+    _node.append_child("loop_mode").text().set(loopMode);
+
+    // PlaybackMode
+    _node.append_child("play_mode").text().set(playbackMode);
+
+    // Timesignature
+    pugi::xml_node tsNode = _node.append_child("time_signature");
+    tsNode.append_attribute("bpm").set_value(timeSignature.bpm);
+    tsNode.append_attribute("beats_per_bar").set_value(timeSignature.beatsPerBar);
+    tsNode.append_attribute("notes_per_beat").set_value(timeSignature.notesPerBeat);
+
+    // Todo: PlaySpeed ?
+
+    return true;
+}
+
+bool ofxSATimeline::retrieveXmlNode(pugi::xml_node &_node){
+    bool ret = true;
+
+    // FPS
+    if(pugi::xml_node fpsNode = _node.child("fps")){
+        fps = fpsNode.text().as_uint();
+    }
+    else ret = false;
+
+    // Duration
+    if(pugi::xml_node dNode = _node.child("duration")){
+        duration = dNode.text().as_double();
+    }
+    else ret = false;
+
+    // LoopMode
+    if(pugi::xml_node lNode = _node.child("loop_mode")){
+        loopMode = static_cast<ofxSATimelineLoopMode>(lNode.text().as_int());
+    }
+    else ret = false;
+
+    // PlaybackMode
+    if(pugi::xml_node fpsNode = _node.child("play_mode")){
+        playbackMode = static_cast<ofxSATimelineMode>(fpsNode.text().as_uint());
+    }
+    else ret = false;
+
+    // Timesignature
+    if(pugi::xml_node tsNode = _node.child("time_signature")){
+        timeSignature.bpm = tsNode.attribute("bpm").as_uint();
+        timeSignature.beatsPerBar = tsNode.attribute("beats_per_bar").as_uint();
+        timeSignature.notesPerBeat = tsNode.attribute("notes_per_beat").as_uint();
+    }
+    else ret = false;
+
+    reset();
+
+    return ret;
+}
+#endif

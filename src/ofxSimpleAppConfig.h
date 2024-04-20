@@ -7,9 +7,9 @@
 //#include "vectorMapperConstants.h"
 //#   include ofxSA_CONFIG_HEADER_FILE // <-- only works using clang !
 #   include "vectorMapperConstants.h" // tmp!
-#   pragma message "ofxSA : Loading & sanitising custom config file !"
+//#   pragma message "ofxSA : Loading & sanitising custom config file !"
 #else
-#   pragma message "ofxSA : Loading defaults !"
+//#   pragma message "ofxSA : Loading defaults !"
 #endif
 
 //// Enables debugging
@@ -268,6 +268,12 @@
 #   ifndef ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
 #       define ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
 #       endif
+#endif
+
+// ofxTimeMeasurements
+#define ofxSA_TIME_MEASUREMENTS_ENABLE // tmp
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+// todo...
 #endif
 
 // Todo :
