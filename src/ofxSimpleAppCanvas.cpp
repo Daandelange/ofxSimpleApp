@@ -282,7 +282,7 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
     ImGui::PopStyleVar(4);
 }
 
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 // Load + Save
 bool ofxSimpleAppCanvas::populateXmlNode(pugi::xml_node &_node){
     //pugi::xml_node shapesNode = _node.append_child("shapes");

@@ -237,7 +237,7 @@ public:
 
     void drawImGuiTimelineWindow(bool* p_open = nullptr);
 
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 	bool populateXmlNode(pugi::xml_node& _node);
 	bool retrieveXmlNode(pugi::xml_node& _node);
 #endif

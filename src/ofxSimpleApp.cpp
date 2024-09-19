@@ -150,6 +150,12 @@ void ofxSimpleApp::exit(){
 
 //--------------------------------------------------------------
 void ofxSimpleApp::update(){
+    // Exit ?
+    if(bExitOnNextUpdate){
+        ofExit();
+        bExitOnNextUpdate = false;
+    }
+
     // FPS plotting
     // Todo: Use a more precise measure ? Measure frame time too ?
     syncHistogram<float, double>(FPSHistory, ofGetFrameRate());
@@ -183,9 +189,15 @@ void ofxSimpleApp::draw(){
 //--------------------------------------------------------------
 #ifdef ofxSA_SYPHON_OUTPUT
 void ofxSimpleApp::publishSyphonTexture(){
-    // By default, this publishes the full window.
-    // You can override this to publish a custom texture.
-    syphonServer.publishScreen();
+    if(bEnableSyphonOutput){
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+        syphonServer.publishTexture(&canvas.fbo.getTexture());
+#else
+        // By default, this publishes the full window.
+        // You can override this to publish a custom texture.
+        syphonServer.publishScreen();
+#endif
+    }
 }
 #endif
 
@@ -449,8 +461,9 @@ void ofxSimpleApp::updateCursorForGui(){
 
 //--------------------------------------------------------------
 void ofxSimpleApp::keyPressed(ofKeyEventArgs &e){
-    // Son't interfecre with ImGui
-    if(ImGui::GetIO().WantCaptureKeyboard) return;
+    // Don't interfere with ImGui
+    auto& io = ImGui::GetIO();
+    if(io.WantCaptureKeyboard) return;
 
     // Check keyboard shortcuts
     if(e.hasModifier(MOD_KEY)){
@@ -533,9 +546,6 @@ void ofxSimpleApp::audioRequested(float * output, int bufferSize, int nChannels)
 
 void ofxSimpleApp::loadImGuiTheme(){
     if(imguiTheme!=nullptr) delete imguiTheme;
-    //if(bUseDarkTheme) imguiTheme = new DarkTheme();
-    //else imguiTheme = new Spectrum();
-    //imguiTheme->setup();
     gui.setTheme(bUseDarkTheme?((ofxImGui::BaseTheme*)new DarkTheme()):((ofxImGui::BaseTheme*)new Spectrum()));
 }
 
@@ -549,7 +559,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             else {
                 ImGui::TextDisabled("Copyright %i %s", curYear, ofxSA_APP_AUTHOR);
             }
-            ImGui::TextDisabled("Version %d.%d.%d", ofxSA_VERSION_MAJOR, ofxSA_VERSION_MINOR, ofxSA_VERSION_PATCH );
+            ImGui::TextDisabled("Version %d.%d.%d", ofxSA_APP_VERSION_MAJOR, ofxSA_APP_VERSION_MINOR, ofxSA_APP_VERSION_PATCH );
             ImGui::Dummy({ofxSA_UI_MARGIN, ofxSA_UI_MARGIN});
             ImGui::Separator();
 
@@ -598,7 +608,14 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             ImGui::Dummy({5,5});
             ImGui::Separator();
             if( ImGui::MenuItem( "Exit", SHORTCUT_FUNC "+Q" ) ){
-                ofExit();
+                // Alt quits immediately
+                if(ImGui::IsKeyDown(ImGuiMod_Alt)){
+                    ofExit();
+                }
+                // Exit in the update cycle, prevents crashes in some cases by letting the draw() finish.
+                else {
+                    bExitOnNextUpdate = true;
+                }
             }
             ImGui::EndMenu();
         } // EndMenu( ENIGMATIK_WINDOW_TITLE )
@@ -971,7 +988,7 @@ void ofxSimpleApp::ImGuiDrawAboutWindow(){
                 ImGui::Text("Copyright %i %s", curYear, ofxSA_APP_AUTHOR);
             }
 
-            ImGui::Text("Version %d.%d.%d", ofxSA_VERSION_MAJOR, ofxSA_VERSION_MINOR, ofxSA_VERSION_PATCH );
+            ImGui::Text("Version %d.%d.%d", ofxSA_APP_VERSION_MAJOR, ofxSA_APP_VERSION_MINOR, ofxSA_APP_VERSION_PATCH );
             ImGui::Dummy(ImVec2(0,50));
             //ImGui::Separator();
 
@@ -1276,7 +1293,7 @@ void ofxSimpleApp::ImGuiDrawDockingSpace(){
 //    dockingFlags |= ImGuiDockNodeFlags_NoDockingOverMe;
 
     // Define the ofWindow as a docking space
-    ImGuiID dockNodeID = ImGui::DockSpaceOverViewport(NULL, NULL, dockingFlags); // Also draws the docked windows
+    ImGuiID dockNodeID = ImGui::DockSpaceOverViewport(0, NULL, dockingFlags); // Also draws the docked windows
     ImGui::PopStyleColor(2);
 
     ImGuiDockNode* dockNode = ImGui::DockBuilderGetNode(dockNodeID);
@@ -1400,7 +1417,7 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
     }
 
     // Load string buffer
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
     pugi::xml_document doc;
     pugi::xml_parse_result result = doc.load_file(ofToDataPath(path, true).c_str());
     bool loaded = false;
@@ -1420,7 +1437,7 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
     }
 
     // Parse data
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
     // Load ofxSimpleApp section
     pugi::xml_node ofxSimpleAppSettingsNode = doc.child("ofxSimpleAppSettings");
     if(!ofxSimpleAppSettingsNode){
@@ -1512,13 +1529,14 @@ bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
 }
 
 // Populate XML for saving
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     bool ret = true;
 
     // Version
-    _node.append_attribute("version_maj").set_value(ofxSA_VERSION_MAJOR);
-    _node.append_attribute("version_min").set_value(ofxSA_VERSION_MINOR);
-    _node.append_attribute("version_patch").set_value(ofxSA_VERSION_PATCH);
+    _node.append_attribute("version_maj").set_value(ofxSA_APP_VERSION_MAJOR);
+    _node.append_attribute("version_min").set_value(ofxSA_APP_VERSION_MINOR);
+    _node.append_attribute("version_patch").set_value(ofxSA_APP_VERSION_PATCH);
 
     // App name, just for info
     _node.append_child("app_name").text().set(ofxSA_APP_NAME);
@@ -1572,8 +1590,8 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
     }
 
     // Check app version
-    if(ofxSA_VERSION_MAJOR != vMaj || ofxSA_VERSION_MINOR != vMin || ofxSA_VERSION_PATCH != vPatch){
-        ofLogWarning("ofxSimpleApp::ofxSA_retrieveXmlSettings") << "Loaded XML file was made using an older version ("<<vMaj<<"."<<vMin<<"."<<vPatch<<"). Runtime version = "<<ofxSA_VERSION_MAJOR<<"."<<ofxSA_VERSION_MINOR<<"."<<ofxSA_VERSION_PATCH<<".";
+    if(ofxSA_APP_VERSION_MAJOR != vMaj || ofxSA_APP_VERSION_MINOR != vMin || ofxSA_APP_VERSION_PATCH != vPatch){
+        ofLogWarning("ofxSimpleApp::ofxSA_retrieveXmlSettings") << "Loaded XML file was made using an older version ("<<vMaj<<"."<<vMin<<"."<<vPatch<<"). Runtime version = "<<ofxSA_APP_VERSION_MAJOR<<"."<<ofxSA_APP_VERSION_MINOR<<"."<<ofxSA_APP_VERSION_PATCH<<".";
         // Todo: increment save file, load new one not to overwrite old version ?
     }
 
@@ -1621,6 +1639,7 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
 
     return ret;
 }
+#endif // ofxSA_XML_ENGINE_PUGIXML
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 unsigned int ofxSimpleApp::getCanvasResolutionX() const {

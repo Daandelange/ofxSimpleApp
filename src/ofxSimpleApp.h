@@ -6,7 +6,7 @@
 #include "ofxImGui.h"
 #include "ofxImGuiLoggerChannel.h"
 
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 #	include "pugixml.hpp"
 #else
 #	include "ofxXmlSettings.h"
@@ -27,6 +27,14 @@
 #ifdef ofxSA_TEXRECORDER_ENABLE
 #include "ofxFFmpegRecorder.h"
 #include "ofxFastFboReader.h"
+#endif
+
+#ifdef TARGET_OSX
+// Requires to install https://developer.nvidia.com/cuda-toolkit-archive
+// Osx 10.12 : use Cuda toolkit 9.2.1
+// Osx 10.13+ : use Cuda toolkit 10.2
+//#include <cuda_runtime_api.h>
+//#include <cuda.h>
 #endif
 
 //enum AppState {
@@ -84,6 +92,8 @@ protected:
 
 		static ofxImGui::BaseTheme* imguiTheme;
 		static bool bUseDarkTheme;
+		bool bExitOnNextUpdate = false;
+
 		void loadImGuiTheme();
 		void ImGuiDrawMenuBar();
 		void ImGuiDrawAboutWindow();
@@ -110,10 +120,10 @@ protected:
 		//ofRectangle curViewport;
 
 		// Xml settings
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 		//pugi::xml_document xml;
-		virtual bool populateXmlSettings(pugi::xml_node& _node)=0;
-		virtual bool retrieveXmlSettings(pugi::xml_node& _node)=0;
+        virtual bool populateXmlSettings(pugi::xml_node& _node){ return true; };
+        virtual bool retrieveXmlSettings(pugi::xml_node& _node){ return true; };
 		bool ofxSA_populateXmlSettings(pugi::xml_node& _node);
 		bool ofxSA_retrieveXmlSettings(pugi::xml_node& _node);
 #else
@@ -144,8 +154,8 @@ protected:
 		std::shared_ptr<ofxImGui::LoggerChannel> logChannel;
 		static std::pair<ofLogLevel, std::string> ofLogLevels[];
 
-#ifdef ofxSA_SYPHON_OUTPUT
 		// Syphon
+#ifdef ofxSA_SYPHON_OUTPUT
 		ofxSyphonServer syphonServer;
 		bool bEnableSyphonOutput = false;
 		virtual void publishSyphonTexture();
