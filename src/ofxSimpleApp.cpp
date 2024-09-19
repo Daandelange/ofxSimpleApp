@@ -786,8 +786,8 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 if(saveDir.size()>0){
                     ImGui::SeparatorText("As an existing file...");
                     for(auto& file : saveDir){
-                        if(ImGui::Selectable(file.getFileName().c_str(), false, ImGuiSelectableFlags_DontClosePopups)){
-                            strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
+                        if(ImGui::Selectable(file.getFileName().c_str(), false, ImGuiSelectableFlags_NoAutoClosePopups)){
+                            std::strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
                             file.getFileName().copy(newFileName, IM_ARRAYSIZE(newFileName));
                         }
                     }
@@ -1002,7 +1002,7 @@ void ofxSimpleApp::ImGuiDrawAboutWindow(){
                     bool copy_to_clipboard = ImGui::Button("Copy to clipboard");
 
                     ImGui::Spacing();
-                    ImGui::BeginChildFrame(ImGui::GetID("Build Configuration"), ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 18), ImGuiWindowFlags_NoMove);
+                    ImGui::BeginChild(ImGui::GetID("Build Configuration"), ImVec2(0, ImGui::GetTextLineHeightWithSpacing() * 18), ImGuiChildFlags_FrameStyle, ImGuiWindowFlags_NoMove);
                     if (copy_to_clipboard){
                         ImGui::LogToClipboard();
                     }
@@ -1228,7 +1228,7 @@ ImGui::Separator();
                     if (copy_to_clipboard){
                         ImGui::LogFinish();
                     }
-                    ImGui::EndChildFrame();
+                    ImGui::EndChild();
 
                     ImGui::EndTabItem();
                 } // end build info
@@ -1269,14 +1269,14 @@ void ofxSimpleApp::ImGuiDrawDockingSpace(){
     // Alternative: Otherwise add in ImGui::DockSpace() [±line 14505] : if (flags & ImGuiDockNodeFlags_PassthruCentralNode) window_flags |= ImGuiWindowFlags_NoBackground;
     ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(0,0,0,0));
 
-    dockingFlags |= ImGuiDockNodeFlags_NoDockingInCentralNode; // Uncomment to always keep an empty "central node" (a visible oF space)
+    dockingFlags |= ImGuiDockNodeFlags_NoDockingOverCentralNode; // Uncomment to always keep an empty "central node" (a visible oF space)
     //dockingFlags |= ImGuiDockNodeFlags_NoTabBar; // Uncomment to disable creating tabs in the main view
     //dockingFlags |= ImGuiDockNodeFlags_AutoHideTabBar;
     //dockingFlags |= ImGuiDockNodeFlags_NoDockingSplitMe;
 //    dockingFlags |= ImGuiDockNodeFlags_NoDockingOverMe;
 
     // Define the ofWindow as a docking space
-    ImGuiID dockNodeID = ImGui::DockSpaceOverViewport(NULL, dockingFlags); // Also draws the docked windows
+    ImGuiID dockNodeID = ImGui::DockSpaceOverViewport(NULL, NULL, dockingFlags); // Also draws the docked windows
     ImGui::PopStyleColor(2);
 
     ImGuiDockNode* dockNode = ImGui::DockBuilderGetNode(dockNodeID);

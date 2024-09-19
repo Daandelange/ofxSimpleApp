@@ -883,8 +883,8 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         }
         ImGuiDir frameNav = ImGuiEx::ButtonPair(ImGuiDir_Left, ImGuiDir_Right);
         if(frameNav!=ImGuiDir_None){
-            if(frameNav==ImGuiDir_Left) nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?(-1*fps):-1);
-            else nextFrame(ImGui::IsKeyDown(ImGuiKey_ModShift)?fps:1);
+            if(frameNav==ImGuiDir_Left) nextFrame(ImGui::IsKeyDown(ImGuiMod_Shift)?(-1*fps):-1);
+            else nextFrame(ImGui::IsKeyDown(ImGuiMod_Shift)?fps:1);
         }
         if(endDisabled) ImGui::EndDisabled();
 

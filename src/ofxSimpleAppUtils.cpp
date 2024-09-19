@@ -101,7 +101,7 @@ namespace ImGuiEx {
 
     bool ButtonActive(const char* id, bool isActive){
         if(isActive){
-            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_TabActive));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_TabSelected));
         }
         bool ret = ImGui::Button(id);
         if(isActive){
@@ -154,13 +154,14 @@ namespace ImGuiEx {
         ImVec2 pos = ImGui::GetCursorScreenPos();
 
         if(isActive){
-            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_TabActive));
+            ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_TabSelected));
         }
 
         bool ret = false;
         if(ImGui::Button(btnId.c_str()))
             ret=true;
 
+        //if(ret) std::cout << "ret = " << (ret?1:0) << "\tbtnId = " << btnId << std::endl;
         if(isActive){
             ImGui::PopStyleColor();
         }

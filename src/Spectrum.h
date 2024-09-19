@@ -287,9 +287,9 @@ class Spectrum : public ofxImGui::BaseTheme {
 
         style.Colors[ImGuiCol_Tab]                     = ImVec4(col_main_area, 0.9f); // ImLerp_spec(colors[ImGuiCol_Header],       colors[ImGuiCol_TitleBgActive], 0.80f)
         style.Colors[ImGuiCol_TabHovered]              = ImVec4(col_main_head, 0.5f);
-        style.Colors[ImGuiCol_TabActive]               = ImVec4(col_main_head, 0.7f);
-        style.Colors[ImGuiCol_TabUnfocused]            = ImLerp_spec(style.Colors[ImGuiCol_Tab],       style.Colors[ImGuiCol_TitleBg], 0.80f);
-        style.Colors[ImGuiCol_TabUnfocusedActive]      = ImLerp_spec(style.Colors[ImGuiCol_TabActive], style.Colors[ImGuiCol_TitleBg], 0.40f);
+        style.Colors[ImGuiCol_TabSelected]               = ImVec4(col_main_head, 0.7f);
+        style.Colors[ImGuiCol_TabDimmed]            = ImLerp_spec(style.Colors[ImGuiCol_Tab],       style.Colors[ImGuiCol_TitleBg], 0.80f);
+        style.Colors[ImGuiCol_TabDimmedSelected]      = ImLerp_spec(style.Colors[ImGuiCol_TabSelected], style.Colors[ImGuiCol_TitleBg], 0.40f);
 
         style.Colors[ImGuiCol_DockingPreview]          = style.Colors[ImGuiCol_HeaderActive] * ImVec4(1.0f, 1.0f, 1.0f, 0.7f);
         style.Colors[ImGuiCol_DockingEmptyBg]          = ImVec4(col_win_backg, 0.8f);
