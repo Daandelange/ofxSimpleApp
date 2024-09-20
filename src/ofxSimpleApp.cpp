@@ -108,7 +108,13 @@ void ofxSimpleApp::setup(){
 	// GUI SETUP
 
 	// Gui Instance
-    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():(ofxImGui::BaseTheme*)new ofxSA_GUI_THEME_CUSTOM_CLASS());
+    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():
+#ifdef ofxSA_GUI_THEME_CUSTOM_FILE
+        (ofxImGui::BaseTheme*)new ofxSA_GUI_THEME_CUSTOM_CLASS()
+#else
+        (ofxImGui::BaseTheme*)new DarkTheme()
+#endif
+        );
     gui.setup(theme, false, ofxSA_UI_IMGUI_CONFIGFLAGS, ofxSA_UI_RESTORE_STATE);
 
 #ifdef ofxSA_GUI_DEFAULT_HIDDEN
@@ -637,7 +643,13 @@ void ofxSimpleApp::audioRequested(float * output, int bufferSize, int nChannels)
 
 
 void ofxSimpleApp::loadImGuiTheme(){
-    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():(new ofxSA_GUI_THEME_CUSTOM_CLASS()));
+    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():
+#ifdef ofxSA_GUI_THEME_CUSTOM_FILE
+        (ofxImGui::BaseTheme*)new ofxSA_GUI_THEME_CUSTOM_CLASS()
+#else
+        (ofxImGui::BaseTheme*)new DarkTheme()
+#endif
+        );
     gui.setTheme(theme);
 }
 
@@ -690,7 +702,11 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
                 ImGui::SeparatorText("Gui");
 
-                if(ImGui::BeginCombo("Theme", themeID==ofxSA_GUI_THEME_LIGHT?"Light":(themeID==ofxSA_GUI_THEME_CUSTOM?ofxSA_GUI_THEME_CUSTOM_NAME:"Dark") )){
+                const char* previewTxt = themeID==ofxSA_GUI_THEME_LIGHT?"Light":"Dark";
+#ifdef ofxSA_GUI_THEME_CUSTOM_FILE
+                if(themeID==ofxSA_GUI_THEME_CUSTOM) previewTxt = ofxSA_GUI_THEME_CUSTOM_NAME;
+#endif
+                if(ImGui::BeginCombo("Theme", previewTxt )){
                     if(ImGui::Selectable("Light", themeID==ofxSA_GUI_THEME_LIGHT) ){
                         themeID = ofxSA_GUI_THEME_LIGHT;
                         loadImGuiTheme();
