@@ -137,6 +137,12 @@ namespace ImGuiEx {
         ImGui::End();
 
 
+        // When the user has left the menu layer (typically: closed menus through activation of an item), we restore focus to the previous window
+        // FIXME: With this strategy we won't be able to restore a NULL focus.
+        ImGuiContext& g = *GImGui;
+        if ( false && g.CurrentWindow == g.NavWindow && g.NavLayer == ImGuiNavLayer_Main && !g.NavAnyRequest)
+            ImGui::FocusTopMostWindowUnderOne(g.NavWindow, NULL, NULL, ImGuiFocusRequestFlags_UnlessBelowModal | ImGuiFocusRequestFlags_RestoreFocusedChild);
+
         ImGui::End();
     }
     bool ToolBarItem(const char* id, bool* isActive){
@@ -202,7 +208,7 @@ namespace ImGuiEx {
     inline bool MenuItem(const char* label, const ImGuiKeyChord key)
     {
         char shortcut[32];
-        ImGui::GetKeyChordName(key, shortcut, IM_ARRAYSIZE(shortcut));
+        //ImGui::GetKeyChordName(key, shortcut, IM_ARRAYSIZE(shortcut));
         return ImGui::MenuItem(label, shortcut) || ImGui::IsKeyChordPressed(key);
     }
 

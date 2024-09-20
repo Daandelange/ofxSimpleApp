@@ -65,15 +65,15 @@ class ofxSimpleApp : public ofBaseApp {
 
 		void keyPressed(ofKeyEventArgs &e) override;
 		void keyReleased(ofKeyEventArgs &e) override;
-//		void mouseMoved(int x, int y );
-//		void mouseDragged(int x, int y, int button);
-//		void mousePressed(int x, int y, int button);
-//		void mouseReleased(int x, int y, int button);
-//		void mouseEntered(int x, int y);
-//		void mouseExited(int x, int y);
-//		void dragEvent(ofDragInfo dragInfo);
-//		void gotMessage(ofMessage msg);
+//		void mouseMoved(int x, int y ) override;
+//		void mouseDragged(int x, int y, int button) override;
+//		void mousePressed(int x, int y, int button) override;
+//		void mouseReleased(int x, int y, int button) override;
+//		void mouseEntered(int x, int y) override;
+//		void mouseExited(int x, int y) override;
 		void windowResized(int w, int h) override;
+//		void dragEvent(ofDragInfo dragInfo) override;
+//		void gotMessage(ofMessage msg) override;
 
 		//--------------------------------------------------------------
 		virtual void audioRequested(float * output, int bufferSize, int nChannels) override;
@@ -91,7 +91,7 @@ protected:
 		static const int curYear;
 
 		static ofxImGui::BaseTheme* imguiTheme;
-		static bool bUseDarkTheme;
+        static unsigned int themeID;
 		bool bExitOnNextUpdate = false;
 
 		void loadImGuiTheme();
@@ -102,14 +102,18 @@ protected:
 		ofRectangle dockingViewport;
 		void onImguiViewportChange(){
 			// Update canvas
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 			ofRectangle vp = getViewport();
 			canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
+#   endif
 		}
 #endif
 		virtual void onViewportChange(){
 			// Update canvas
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 			//ofRectangle vp = getViewport();
 			//canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
+#endif
 		}
 
 		virtual void onContentResize(unsigned int _width, unsigned int _height){
@@ -193,12 +197,27 @@ protected:
 		ofxFFmpegRecorder m_Recorder;
 		bool isRecordingCanvas = false;
 		ofxFastFboReader fastFboReader = {1};
-		virtual void recordCanvasFrame(); // You need to implement this once to send your frames
+		virtual void recordCanvasFrame(); // You need to implement this once to send your frames, or call recordCanvasPixels() manually.
+		void recordCanvasPixels(const ofPixels& _pixels);
 		ofPixels recordedPixels;
 		std::string recordingTargetName = ofxSA_TEXRECORDER_DEFAULT_FILENAME;
 		std::string curRecordingName = "";
 		bool bRecordAudioToo = false; // Unsupported yet ???
 		std::string getNextRecordingName();
 		static bool formatPngFilePath(std::string& _string, unsigned int _frame);
+		bool bRecordNextFrame = false; // todo: move to vmapper
+		bool bThreadedRecording = true;
+		static void threadFnSavePng(const ofPixels& _pixels, std::string _filePath);
+		const char* selectedCodec = nullptr;//ofxSA_TEXRECORDER_DEFAULT_CODEC;
+		static const std::map<const char*, const char*> ffmpegRecordingFormats; // Pair of codec + extension
+		unsigned int bitrateVideo = 12000;
+		unsigned int bitrateAudio = 320;
+		bool bRecorderStopOnLoop = true;
+		int recordFrameRange[2] = {-1, -1};
+
+#	ifdef ofxSA_TIMELINE_ENABLE
+		bool onTimelineRestart(std::size_t& _loopCount);
+		bool onTimelineStop();
+#	endif
 #endif
 };

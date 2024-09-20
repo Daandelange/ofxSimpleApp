@@ -10,7 +10,7 @@
 #include "imgui.h"
 #include "ofxSimpleAppUtils.h"
 
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 #include "pugixml.hpp"
 #endif
 
@@ -57,13 +57,15 @@ public:
 
 // Struct with all time counters available
 struct ofxSATimeCounters {
-    unsigned int frameCount; // Number of rendered frames
-    unsigned int frameNum; // Theoretical frame number
-    unsigned int loopCount;
-    unsigned int beatCount;
-    unsigned int barCount;
-    unsigned int noteCount;
+    std::size_t frameCount; // Number of rendered frames
+    std::size_t frameNum; // Theoretical frame number
+    std::size_t loopCount;
+    std::size_t beatCount;
+    std::size_t barCount;
+    std::size_t noteCount;
     double playhead; // In seconds
+    double tDelta; // Elapsed seconds since last frame. Experimental
+    double progress;
     const double& elapsedSeconds(){ return playhead; } // Alias
 };
 
@@ -76,17 +78,20 @@ struct ofxSATimeRamps {
     //double loopProgress;
 
     // Bars
+    float barElapsed; // bar counter
     float barProgress; // (linearly 0 to 1 each bar)
     float barPulse; // (a very short and smoothed impulse on each bar start)
     //double barRandom; //
 
     // Beats
+    float beatsElapsed; // beats counter
     float beatProgress; // (linearly 0 to 1 on each beat)
     float beatPulse; // (a very short and smoothed impulse on each beat start)
     float beatStep; //  Beat number, from 0 to 1
     //double beatRandom;
 
     // Notes
+    float noteElapsed; // note counter
     float noteProgress; // (linearly 0 to 1 on each note)
     float notePulse; // (a very short and smoothed impulse on each note start)
     float noteStep; //  Note number, from 0 to 1
@@ -147,8 +152,8 @@ class ofxSATimeline {
         }
 
     // Starts the timeline (aka. play())
-    void start();
-    void startNextFrame();
+    void start(unsigned int _offset=0);
+    void startNextFrame(unsigned int _offset=0);
 
     // Function to pause the timeline
     void pause();
@@ -163,9 +168,9 @@ class ofxSATimeline {
     // Frame-by-frame, relative
     void nextFrame(int _direction = 1);
 
-    void goToFrame(int _frame, bool _relative=false);
+    void goToFrame(int _frame, bool _relative=false, bool _doPause=true);
 
-    void goToSeconds(double _seconds, bool _relative=false);
+    void goToSeconds(double _seconds, bool _relative=false, bool _doPause=true);
 
     void setLoop(ofxSATimelineLoopMode loopMode);
     void setDuration(double duration);
@@ -242,6 +247,13 @@ public:
 	bool retrieveXmlNode(pugi::xml_node& _node);
 #endif
 
+	// Events you can listen to !
+	ofEvent<std::size_t> onStart; // Argument = current loop count (0 on restart).
+	ofEvent<ofxSATimeCounters> onUpdateTick; // Argument = elapserSeconds.
+	ofEvent<ofxSATimeCounters> onFrameTick; // Argument = elapserSeconds.
+	ofEvent<bool> onPause; // Argument = paused=1, resumed=0
+    ofEvent<ofxSATimeCounters> onSeek;
+    ofEvent<void> onStop;
 private:
     // Composition Settings
     unsigned int fps; // Desired framerate (realtime), Exact framerate (offline)
@@ -256,9 +268,17 @@ private:
     double playSpeed;
     ofxSATimelineMode playbackMode;
     bool bStartNextFrame = false;
+    unsigned int startNextFrameOffet=0u;
 
     // Counters
     ofxSATimeCounters counters;
+//    unsigned int frameCount; // Number of rendered frames
+//    unsigned int frameNum; // Theoretical frame number
+//    unsigned int loopCount;
+//    unsigned int beatCount;
+//    unsigned int barCount;
+//    unsigned int noteCount;
+//    double playhead; // In seconds
 
     // Internals
     std::chrono::high_resolution_clock::time_point start_time;

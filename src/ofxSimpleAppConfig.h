@@ -28,15 +28,22 @@
 #   pragma message "ofxSA : No custom user config, loading defaults !"
 #endif
 
-//// Enables debugging
-//#define ofxSA_DEBUG
+// Enable debugging when global debugging is on
+#ifndef ofxSA_DEBUG
+#   ifdef DEBUG
+#       define ofxSA_DEBUG
+#   endif
+#endif
 
 // - - - - -
 // App Info
 
 // Credentials
 #ifndef ofxSA_APP_NAME
-#   define ofxSA_APP_NAME "ofxSimpleApp" // Important : No whitespaces, serves as an ID !
+#   define ofxSA_APP_NAME "ofxSimpleApp"
+#endif
+#ifndef ofxSA_APP_ID
+#   define ofxSA_APP_ID "ofxSimpleAppDefaultID" // Important : No whitespaces, no special chars, serves as an ID !
 #endif
 #ifndef ofxSA_APP_AUTHOR
 #   define ofxSA_APP_AUTHOR "Anonymous"
@@ -144,12 +151,18 @@
 
 // Custom theme
 #ifdef ofxSA_GUI_THEME_CUSTOM_FILE
-#   pragma message "ofxSA : You choose to use a custom theme, ensure that the file exists !"
-#   ifndef ofxSA_GUI_THEME_CUSTOM_NAME // Ensure default theme name
+    // Ensure default theme name (optional)
+#   ifndef ofxSA_GUI_THEME_CUSTOM_NAME
 #       define ofxSA_GUI_THEME_CUSTOM_NAME "Custom Theme"
+#   endif
+    // Ensure custom theme class (required)
+#   ifndef ofxSA_GUI_THEME_CUSTOM_CLASS
+#       pragma message "ofxSA : You choose to use a custom theme, but you forgot to define its class !"
+#       undef ofxSA_GUI_THEME_CUSTOM_FILE
 #   endif
 #else
 #   undef ofxSA_GUI_THEME_CUSTOM_NAME
+#   undef ofxSA_GUI_THEME_CUSTOM_CLASS
 #endif
 
 // Default theme
@@ -296,7 +309,26 @@
 // tmp enabled by default
 #   ifndef ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
 #       define ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
+#   endif
+
+#   ifndef DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT
+// Note: we could also use matroska for any platform, it's a patent-free format :)
+#       if defined(TARGET_OSX)
+#           define DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT ".mov"
+#       elif defined(TARGET_LINUX)
+#           define DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT ".mkv"
+#       else
+#           define DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT ".avi"
 #       endif
+#   endif
+#endif
+
+// Define if there are any modules with a menu
+#ifndef ofxSA_HAS_MODULES_MENU
+// Do current modules have a menu ? (or force it)
+#   if defined(ofxSA_FORCE_MODULES_MENU) || defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE)
+#       define ofxSA_HAS_MODULES_MENU
+#   endif
 #endif
 
 // ofxTimeMeasurements
@@ -339,6 +371,7 @@
 // - - - -
 // ofxSimpleApp: Application Properties
 //#define ofxSA_APP_NAME "myAppName"
+//#define ofxSA_APP_ID "myAppName" // No spaces, no special characters
 //#define ofxSA_APP_AUTHOR "Anonymous"
 //#define ofxSA_APP_AUTHOR_WEBSITE "https://github.com/Daandelange/ofxSimpleApp"
 //#define ofxSA_APP_COPYRIGHT_START_YEAR 2023
@@ -365,8 +398,9 @@
 //#define ofxSA_UI_MARGIN 10
 //#define ofxSA_UI_LINE_HEIGHT 22
 //#define ofxSA_GUI_THEME_DEFAULT ofxSA_GUI_THEME_DARK // Use a predefined theme
-//#define ofxSA_GUI_THEME_CUSTOM_FILE "myTheme.h" // Custom theme
-//#define ofxSA_GUI_THEME_CUSTOM_NAME "My Theme" // Custom theme
+//#define ofxSA_GUI_THEME_CUSTOM_FILE "myTheme.h" // Custom theme file
+//#define ofxSA_GUI_THEME_CUSTOM_NAME "My Theme"  // Custom theme name
+//#define ofxSA_GUI_THEME_CUSTOM_CLASS MyTheme    // Custom theme class
 
 // - - - -
 // Runtime settings

@@ -1,22 +1,23 @@
+#include <string>
 #include "ofxSimpleApp.h"
-//#include "imgui_internal.h"
-#include "imgui.h"
 
+#include "imgui.h"
+#include "imgui_internal.h" // <-- advanced docking features from imgui internals...
+
+// Gui Themes
 #include "Spectrum.h"
 #include "DarkTheme.h"
-
-#include <string>
-
-#if ofxSA_GUI_THEME != ofxSA_GUI_THEME_DARK && ofxSA_GUI_THEME != ofxSA_GUI_THEME_LIGHT
-#	include ofxSA_GUI_THEME_FILE
+#ifdef ofxSA_GUI_THEME_CUSTOM_FILE
+#	include ofxSA_GUI_THEME_CUSTOM_FILE
 #endif
 
+// Modules
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
 #include "ofxTimeMeasurements.h"
 #endif
 
+
 #include "ofxSimpleAppUtils.h"
-#include "imgui_internal.h" // <-- advanced docking features from imgui internals...
 //#include "ofGraphics.h" // for GL info stuff ?
 
 //------
@@ -30,12 +31,16 @@ std::pair<ofLogLevel, std::string> ofxSimpleApp::ofLogLevels[] = {
 	{ OF_LOG_SILENT,        ofGetLogLevelName(OF_LOG_SILENT     ) }
 };
 
-bool ofxSimpleApp::bUseDarkTheme = true;
+unsigned int ofxSimpleApp::themeID = ofxSA_GUI_THEME_DEFAULT;
 ofxImGui::BaseTheme* ofxSimpleApp::imguiTheme = nullptr;
 const int ofxSimpleApp:: curYear = std::stoi(ofGetTimestampString("%Y").c_str());
 
 //--------------------------------------------------------------
-ofxSimpleApp::ofxSimpleApp(){
+ofxSimpleApp::ofxSimpleApp()
+    #ifdef ofxSA_TEXRECORDER_ENABLE
+    : selectedCodec(ffmpegRecordingFormats.begin()->first)
+    #endif
+{
 	// LOGGER SETUP
 	logChannel = std::shared_ptr<ofxImGui::LoggerChannel>( new ofxImGui::LoggerChannel() );
 	ofSetLoggerChannel(logChannel);
@@ -78,8 +83,23 @@ void ofxSimpleApp::setup(){
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
 	//specify where the widget is to be drawn
 	TIME_SAMPLE_SET_DRAW_LOCATION( TIME_MEASUREMENTS_BOTTOM_RIGHT );
+	//TIME_SAMPLE_GET_INSTANCE()->removeEventHooks(); // drm draw ??
+	//TIME_SAMPLE_GET_INSTANCE()->setAutoDraw(false); // disable auto draw !
+
+
+	//TIME_SAMPLE_SET_AVERAGE_RATE(0.1);	//averaging samples, (0..1],
+										//1.0 gets you no averaging at all
+										//use lower values to get steadier readings
 	TIME_SAMPLE_DISABLE_AVERAGE();	//disable averaging
+
 	TIME_SAMPLE_SET_REMOVE_EXPIRED_THREADS(true); //inactive threads will be dropped from the table
+	//customize color
+	//TIME_SAMPLE_GET_INSTANCE()->setHighlightColor(ofColor::yellow);
+
+	//TIME_SAMPLE_GET_INSTANCE()->drawUiWithFontStash("fonts/UbuntuMono-R.ttf");
+	//TIME_SAMPLE_GET_INSTANCE()->drawUiWithFontStash2("fonts/UbuntuMono-R.ttf");
+#endif
+
 	// Window Title
 	// Done in main.cpp, useless here
 	//ofSetWindowTitle(ofxSA_APP_NAME);
@@ -88,7 +108,8 @@ void ofxSimpleApp::setup(){
 	// GUI SETUP
 
 	// Gui Instance
-	gui.setup(bUseDarkTheme?((ofxImGui::BaseTheme*)new DarkTheme()):((ofxImGui::BaseTheme*)new Spectrum()), false, ofxSA_UI_IMGUI_CONFIGFLAGS, ofxSA_UI_RESTORE_STATE);
+    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():(ofxImGui::BaseTheme*)new ofxSA_GUI_THEME_CUSTOM_CLASS());
+    gui.setup(theme, false, ofxSA_UI_IMGUI_CONFIGFLAGS, ofxSA_UI_RESTORE_STATE);
 
 #ifdef ofxSA_GUI_DEFAULT_HIDDEN
     bShowGui = !ofxSA_GUI_DEFAULT_HIDDEN;
@@ -137,6 +158,11 @@ void ofxSimpleApp::setup(){
     
     // Configure FBO reader
     //fastFboReader.setAsync(false);
+
+#   ifdef ofxSA_TIMELINE_ENABLE
+    ofAddListener(ofxSA_TIMELINE_GET(timeline).onStart, this, &ofxSimpleApp::onTimelineRestart);
+    ofAddListener(ofxSA_TIMELINE_GET(timeline).onStop, this, &ofxSimpleApp::onTimelineStop);
+#   endif
 #endif
 
 	// Restore settings on launch
@@ -145,7 +171,17 @@ void ofxSimpleApp::setup(){
 }
 
 void ofxSimpleApp::exit(){
-
+#ifdef ofxSA_TEXRECORDER_ENABLE
+	// Ensure encoding the current recording correctly
+	if(isRecordingCanvas){
+		stopRecordingCanvas();
+	}
+	// Remove listeners
+#   ifdef ofxSA_TIMELINE_ENABLE
+    ofRemoveListener(ofxSA_TIMELINE_GET(timeline).onStart, this, &ofxSimpleApp::onTimelineRestart);
+    ofRemoveListener(ofxSA_TIMELINE_GET(timeline).onStop, this, &ofxSimpleApp::onTimelineStop);
+#   endif
+#endif
 }
 
 //--------------------------------------------------------------
@@ -251,14 +287,8 @@ std::string ofxSimpleApp::getNextRecordingName() {
         recordingTargetName = ofxSA_TEXRECORDER_DEFAULT_FILENAME;
     }
 
-    // Todo: What about Linux ?
-    const char* extension = {(texRecorderMode == TexRecorderMode_PNG) ? "/frame-000000.png" :
-#   if defined(TARGET_OSX)
-            ".mp4"
-#   else
-            ".avi"
-#   endif
-    };
+    bool bCodecFound = selectedCodec && (ffmpegRecordingFormats.find(selectedCodec)!=ffmpegRecordingFormats.end());
+    const char* extension = (texRecorderMode == TexRecorderMode_PNG) ? "/frame-000000.png" : bCodecFound?ffmpegRecordingFormats.at(selectedCodec):ofxSA_TEXRECORDER_DEFAULT_CODEC;
 
     // Grab new unique filename from requested name
     return getNewFileName(ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER, recordingTargetName.c_str(), extension, true, "_");
@@ -279,7 +309,9 @@ bool ofxSimpleApp::startRecordingCanvas(){
         return false;
     }
 
-    auto& tl = ofxSA_TIMELINE_GET(timeline);
+	ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
+	tl.startNextFrame(glm::max(0,recordFrameRange[0]));
+
 
     // Set new target file
     curRecordingName = ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER;
@@ -290,20 +322,31 @@ bool ofxSimpleApp::startRecordingCanvas(){
         m_Recorder.setOutputPath(ofToDataPath(curRecordingName));
 
         // Recording settings
-        m_Recorder.setVideoCodec(ofxSA_TEXRECORDER_DEFAULT_CODEC);
+        m_Recorder.setVideoCodec(selectedCodec);
         auto cnvPxFormat = canvas.fbo.getTexture().getTextureData().glInternalFormat;
         auto ffmpegFormat = glFormatToFFmpeg(cnvPxFormat);
         if(ffmpegFormat.length()<1)
             ofLogWarning("ofxSimpleApp::startRecordingCanvas()") << "The canvas has an unsupported pixel format, you have to map your GL_format to the ffmpeg pixel format !";
         m_Recorder.setInputPixelFormat(ffmpegFormat);
-        // example test with h264_nvenc
-        //m_Recorder.setVideoCodec("h264_nvenc");
-        m_Recorder.setBitRate(8000); // Dodo: parameterize this
+
+        const unsigned int fromRec = recordFrameRange[0]>0 ? recordFrameRange[0] : 0;
+        const unsigned int toRec = recordFrameRange[1]>0 ? recordFrameRange[1] : tl.getTotalFrames();
+        float duration = float(toRec-fromRec)*(1.f/tl.getFps());
+        //tl.goToFrame(fromRec, false, false);
+
+        m_Recorder.setBitRate(12000); // Dodo: parameterize this
         m_Recorder.setRecordAudio(bRecordAudioToo); // todo: make optional
-        m_Recorder.setCaptureDuration(tl.getDuration());
+        m_Recorder.setCaptureDuration(duration);//tl.getDuration());
         m_Recorder.setFps(tl.getFps());
         m_Recorder.setWidth(canvas.getCanvasWidth());
         m_Recorder.setHeight(canvas.getCanvasHeight());
+
+        ofLogNotice("ofxSimpleApp::startRecordingCanvas()")
+                << "Start recording FFMPEG to destination = " << curRecordingName
+                << "From=" << fromRec*(1.f/tl.getFps()) << "s, To="<< toRec*(1.f/tl.getFps()) << "s, Duration="<< duration << "s."
+                << std::endl;
+
+
 
         isRecordingCanvas = m_Recorder.startCustomRecord();
     }
@@ -315,6 +358,7 @@ bool ofxSimpleApp::startRecordingCanvas(){
         }
         ofLogNotice("ofxSimpleApp::startRecordingCanvas()") << "Start recording PNG to destination = " << dir.path() << std::endl;
 
+            isRecordingCanvas = true;
     return isRecordingCanvas;
 }
 bool ofxSimpleApp::stopRecordingCanvas(){
@@ -326,6 +370,12 @@ bool ofxSimpleApp::stopRecordingCanvas(){
 
     }
     isRecordingCanvas = false;
+
+    // Pause timeline playback on record end
+    // Todo: Make this optional !
+#ifdef ofxSA_TIMELINE_ENABLE
+    ofxSA_TIMELINE_GET(timeline).pause();
+#endif
 
     return isRecordingCanvas == false;
 }
@@ -344,15 +394,6 @@ void ofxSimpleApp::recordCanvasFrame(){
         canvas.fbo.readToPixels(recordedPixels); // slow OF way
         bool bDataLoaded = true;
 #endif
-
-#ifdef ofxSA_TIMELINE_ENABLE
-        unsigned int curFrame = ofxSA_TIMELINE_GET(timeline).getFrameNum();
-        bool realTimeRecording = ofxSA_TIMELINE_GET(timeline).getPlayMode()!=ofxSATimelineMode_Offline;
-#else
-        unsigned int curFrame = ofGetFrameNum();
-        bool realTimeRecording = true;
-#endif
-
         // Got a frame ?
         if(
             // Got data ?
@@ -360,34 +401,85 @@ void ofxSimpleApp::recordCanvasFrame(){
             // Got valid pixels ?
             (recordedPixels.getWidth() > 0 && recordedPixels.getHeight() > 0)
         ){
-            // Route the pixels to the selected recorder...
-            if (texRecorderMode == TexRecorderMode_FFMPEG){
-                if(m_Recorder.isRecording()) {
-                    if(!m_Recorder.addFrame(recordedPixels, realTimeRecording)){
-                        ofLogError("ofxSimpleApp::recordCanvasFrame()") << "FFMpeg refused to add the frame ("<< curFrame << ") data to the sequence.";
-                    }
-                }
-            }
-            else if(texRecorderMode == TexRecorderMode_PNG){
-                std::string frameFile = curRecordingName;
-                if(formatPngFilePath(frameFile, curFrame)){
-                    if(!ofSaveImage(recordedPixels, ofToDataPath(frameFile, true))){
-                        ofLogError("ofxSimpleApp::recordCanvasFrame()") << "Couldn't save frame " << curFrame << " as a PNG !";
-                    }
-                }
-                else {
-                    ofLogError("ofxSimpleApp::recordCanvasFrame()") << "Couldn't format the PNG file path for frame " << curFrame << ".";
-                }
-            }
+            recordCanvasPixels(recordedPixels);
         }
         // Error grabbing frame data
         else {
             // Todo: ofLogError....
+            std::cout << "failed readToPixels !" << std::endl;
             //canvas.fbo.readToPixels(mPix); // fallback on native pixels grabbing
         }
 	}
 }
+#include <future> // for async
+void ofxSimpleApp::recordCanvasPixels(const ofPixels& _pixels){
+    if( isRecordingCanvas && _pixels.getWidth() > 0 && _pixels.getHeight() > 0){
+#ifdef ofxSA_TIMELINE_ENABLE
+        const auto& tl = ofxSA_TIMELINE_GET(timeline);
+        unsigned int curFrame = tl.getFrameNum();
+        bool realTimeRecording = tl.getPlayMode()!=ofxSATimelineMode_Offline;
+
+        // Check autoStop (is this the right place to do this??)
+        const bool autoStop = (recordFrameRange[1] > 0 && tl.getFrameNum() > recordFrameRange[1]+1);
+#else
+        unsigned int curFrame = ofGetFrameNum();
+        bool realTimeRecording = true;
+        const bool autoStop = false;
 #endif
+
+		// Route the pixels to the selected recorder...
+		if (texRecorderMode == TexRecorderMode_FFMPEG){
+			if(m_Recorder.isRecording()) {
+				if(!m_Recorder.addFrame(_pixels, realTimeRecording)){
+					ofLogError("ofxSimpleApp::recordCanvasPixels()") << "FFMpeg refused to add the frame ("<< curFrame << ") data to the sequence.";
+				}
+			}
+		}
+		else if(texRecorderMode == TexRecorderMode_PNG){
+			std::string frameFile = curRecordingName;
+			if(formatPngFilePath(frameFile, curFrame)){
+				std::string path = ofToDataPath(frameFile, true);
+				if(bThreadedRecording){
+					// Todo: probably better to use 1 single dedicated thread ?
+					auto result = std::async(std::launch::async, ofxSimpleApp::threadFnSavePng, _pixels, path);
+				}
+				else {
+					if(!ofSaveImage(_pixels, path)){
+						ofLogError("ofxSimpleApp::recordCanvasPixels()") << "Couldn't save frame " << curFrame << " as a PNG !";
+					}
+				}
+			}
+			else {
+				ofLogError("ofxSimpleApp::recordCanvasPixels()") << "Couldn't format the PNG file path for frame " << curFrame << ".";
+			}
+		}
+
+		if(autoStop){
+			ofLogNotice("ofxSimpleApp::recordCanvasFrame()") << "Auto-stopping current recording on frame #" << recordFrameRange[1];
+			stopRecordingCanvas();
+			return;
+		}
+	}
+}
+
+void ofxSimpleApp::threadFnSavePng(const ofPixels& _pixels, std::string _filePath){
+	if(!ofSaveImage(_pixels, _filePath)){
+		ofLogError("ofxSimpleApp::recordCanvasPixels()") << "Couldn't save file `"<< _filePath <<"` as a PNG !";
+	}
+}
+
+// These combinations have only been tested on OSX...
+const std::map<const char*, const char*> ofxSimpleApp::ffmpegRecordingFormats = {
+	{"libx264", ".mp4"},
+	{"hap", DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT},
+	{"hevc", DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT},
+	{"mpeg4", ".mp4"},
+	{"mjpeg", DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT},
+	{"jpeg2000", DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT},
+	{"webm", ".webm"},
+};
+
+#endif // end TEXRECORDER_ENABLE
 
 //--------------------------------------------------------------
 void ofxSimpleApp::drawGui(){
@@ -545,8 +637,8 @@ void ofxSimpleApp::audioRequested(float * output, int bufferSize, int nChannels)
 
 
 void ofxSimpleApp::loadImGuiTheme(){
-    if(imguiTheme!=nullptr) delete imguiTheme;
-    gui.setTheme(bUseDarkTheme?((ofxImGui::BaseTheme*)new DarkTheme()):((ofxImGui::BaseTheme*)new Spectrum()));
+    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():(new ofxSA_GUI_THEME_CUSTOM_CLASS()));
+    gui.setTheme(theme);
 }
 
 void ofxSimpleApp::ImGuiDrawMenuBar(){
@@ -597,10 +689,25 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 }
 
                 ImGui::SeparatorText("Gui");
-                if(ImGui::Checkbox("Use dark theme", &bUseDarkTheme)){
-                    loadImGuiTheme();
+
+                if(ImGui::BeginCombo("Theme", themeID==ofxSA_GUI_THEME_LIGHT?"Light":(themeID==ofxSA_GUI_THEME_CUSTOM?ofxSA_GUI_THEME_CUSTOM_NAME:"Dark") )){
+                    if(ImGui::Selectable("Light", themeID==ofxSA_GUI_THEME_LIGHT) ){
+                        themeID = ofxSA_GUI_THEME_LIGHT;
+                        loadImGuiTheme();
+                    }
+                    if(ImGui::Selectable("Dark", themeID==ofxSA_GUI_THEME_DARK) ){
+                        themeID = ofxSA_GUI_THEME_DARK;
+                        loadImGuiTheme();
+                    }
+#ifdef ofxSA_GUI_THEME_CUSTOM_FILE
+                    if(ImGui::Selectable(ofxSA_GUI_THEME_CUSTOM_NAME, themeID==ofxSA_GUI_THEME_CUSTOM) ){
+                        themeID = ofxSA_GUI_THEME_CUSTOM;
+                        loadImGuiTheme();
+                    }
+#endif
+                    ImGui::EndCombo();
                 }
-                // Todo : mouse pointer hide/show options ?
+                // Todo : mouse pointer hide/show/auto options ?
 
                 ImGui::EndMenu();
             }
@@ -849,6 +956,8 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             ImGui::EndMenu();
         }
 
+        // Any Modules Enabled ?
+#ifdef ofxSA_HAS_MODULES_MENU
         if(ImGui::BeginMenu("Modules")){
 #ifdef ofxSA_SYPHON_OUTPUT
             ImGui::SeparatorText("Syphon");
@@ -872,6 +981,40 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 texRecorderMode = static_cast<ofxSimpleApp::TexRecorderMode_>(curMode);
             }
             if(isRecordingCanvas) ImGui::EndDisabled();
+
+            // PNG options
+            if(texRecorderMode==TexRecorderMode_PNG){ // threaded is only for PNG
+                ImGui::Checkbox("Threaded recording", &bThreadedRecording);
+            }
+            else if(texRecorderMode==TexRecorderMode_FFMPEG){
+                if(ImGui::BeginCombo("Codec", selectedCodec)){
+                    for(auto& c : ffmpegRecordingFormats){
+                        if(ImGui::Selectable(c.first, selectedCodec && (strcmp(selectedCodec, c.first)==0), ImGuiSelectableFlags_AllowOverlap)){
+                            selectedCodec = c.first;
+                            m_Recorder.setVideoCodec(c.first);
+                        }
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("%s", c.second);
+                    }
+                    ImGui::EndCombo();
+                }
+                static unsigned int bitrateMin = 1u, bitrateMax = 100000u;
+                if(ImGui::DragScalar("Video Bitrate", ImGuiDataType_U32, &bitrateVideo, 1.f, &bitrateMin, &bitrateMax, "%u")){
+                    m_Recorder.setBitRate(bitrateVideo);
+                }
+
+                ImGui::BeginDisabled(); // not yet implemented !
+                ImGui::Checkbox("Record Audio", &bRecordAudioToo);
+                ImGui::EndDisabled();
+
+                // Audio settings
+                if(bRecordAudioToo){
+                    static unsigned int bitrateAudioMax = 320u;
+                    if(ImGui::DragScalar("Audio Bitrate", ImGuiDataType_U32, &bitrateVideo, 1.f, &bitrateMin, &bitrateAudioMax, "%u")){
+                        m_Recorder.setBitRateAudio(bitrateVideo);
+                    }
+                }
+            }
 
             // Destination
             char newFileName[100];
@@ -905,11 +1048,22 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                     stopRecordingCanvas();
                 }
             }
+            ImGui::Checkbox("Stop on loop", &bRecorderStopOnLoop);
+            const auto& tl = ofxSA_TIMELINE_GET(timeline);
+            ImGui::DragInt2("Frame range to record", &recordFrameRange[0], 1, -1, tl.getTotalFrames());
+            const unsigned int fromRec = recordFrameRange[0]>0 ? recordFrameRange[0] : 0;
+            const unsigned int toRec = recordFrameRange[1]>0 ? recordFrameRange[1] : tl.getTotalFrames();
+            ImGui::TextDisabled("Record Start : %fs", fromRec*(1.f/tl.getFps()));
+            ImGui::TextDisabled("Record End   : %fs", toRec*(1.f/tl.getFps()));
+            ImGui::TextDisabled("Record Length: %fs", (toRec-fromRec)*(1.f/tl.getFps()));
+
 
             // FFMPeg details
             if(texRecorderMode==TexRecorderMode_FFMPEG){
+                ImGui::SeparatorText("FFMPEG Recorder");
                 ImGui::Text("FFmpeg   : %s", m_Recorder.getFFmpegPath().c_str());
-                ImGui::Text("Bitrate  : %u", m_Recorder.getBitRate());
+                ImGui::Text("BitrateV : %u", m_Recorder.getBitRate());
+                ImGui::Text("BitrateA : %u", m_Recorder.getBitRateAudio());
                 ImGui::Text("FPS      : %.2f", m_Recorder.getFps());
                 ImGui::Text("Width    : %.0f", m_Recorder.getWidth());
                 ImGui::Text("Height   : %.0f", m_Recorder.getHeight());
@@ -919,12 +1073,14 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             }
             // PNG details
             else {
+                ImGui::SeparatorText("PNG Recorder");
                 ImGui::TextWrapped("In PNG mode, sequential PNG files will be written to the destination folder.\n One folder per recording.");
             }
 #endif
 
             ImGui::EndMenu();
         }
+#endif // ofxSA_HAS_MODULES_MENU
 
         // View menu
         if(ImGui::BeginMenu("View")){
@@ -1059,6 +1215,16 @@ void ofxSimpleApp::ImGuiDrawAboutWindow(){
                     ImGui::Separator();
                     ImGui::Text("openFrameworks v%d.%d.%d", OF_VERSION_MAJOR, OF_VERSION_MINOR, OF_VERSION_PATCH);
                     ImGui::Separator();
+
+                    // Todo: Split Compile info and runtime info
+
+                    // Add HW information ?
+                    // With sysctl header : https://stackoverflow.com/questions/853798/programmatically-get-processor-details-from-mac-os-x
+                    // Win+Linux : https://github.com/SaulBerrenson/sys_info
+                    // List threads from PID : `ps -M 9034`
+                    // HWinfo : https://github.com/lfreist/hwinfo
+                    // Foreign processes too ? https://github.com/time-killer-games/xproc
+                    // Or via getrusage ? https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/getrusage.2.html
 
                     // GPU
                     ImGui::Text("GPU Information:");
@@ -1456,18 +1622,18 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
     }
 
     // Load custom section
-    pugi::xml_node customAppSettingsNode = doc.child(ofxSA_APP_NAME);
+    pugi::xml_node customAppSettingsNode = doc.child(ofxSA_APP_ID);
     if(!customAppSettingsNode){
         ret = false;
-        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `" << ofxSA_APP_NAME << "` section in the document !";
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `" << ofxSA_APP_ID << "` section in the document !";
     }
     else {
         if(retrieveXmlSettings(customAppSettingsNode)){
-            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `" << ofxSA_APP_NAME << "` section from the document !";
+            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `" << ofxSA_APP_ID << "` section from the document !";
         }
         else {
             ret = false;
-            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `" << ofxSA_APP_NAME << "` section in the document !";
+            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `" << ofxSA_APP_ID << "` section in the document !";
         }
     }
 
@@ -1493,22 +1659,29 @@ bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
     if(_fileName.empty()) _fileName = saveName;
     std::string path = savePath+_fileName;
 
-    bool success = true;
-#ifdef ofxSA_XML_ENGINE_PUGIXML
+     bool success = true;
+
+    // Ensure save dir exists
+    ofDirectory dir = ofDirectory(ofFilePath::getEnclosingDirectory(path, true));
+    if(!dir.exists()){
+        success *= dir.create(false);
+        if(!success){
+            ofLogNotice("ofxSimpleApp::saveXmlSettings()") << "Couldn't create parent folder to save to !";
+            return false;
+        }
+    }
+
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
     pugi::xml_document doc;
     pugi::xml_node ofxSimpleAppSettingsNode = doc.append_child("ofxSimpleAppSettings");
     success *= ofxSimpleApp::ofxSA_populateXmlSettings(ofxSimpleAppSettingsNode);
-//    ofxSimpleAppSettingsNode.append_attribute("version_maj").set_value(ofxSA_VERSION_MAJOR);
-//    ofxSimpleAppSettingsNode.append_attribute("version_min").set_value(ofxSA_VERSION_MINOR);
-//    ofxSimpleAppSettingsNode.append_attribute("version_patch").set_value(ofxSA_VERSION_PATCH);
-//    ofxSimpleAppSettingsNode.append_child("app_name").append_child(pugi::node_pcdata).set_value(ofxSA_APP_NAME);
 
-    pugi::xml_node customAppSettingsNode = doc.append_child(ofxSA_APP_NAME);
+    pugi::xml_node customAppSettingsNode = doc.append_child(ofxSA_APP_ID);
     success *= populateXmlSettings(customAppSettingsNode);
 
     if(success){
         // Save !
-        doc.save_file(ofToDataPath(path).c_str());
+        success *= doc.save_file(ofToDataPath(path).c_str());
     }
     else {
         // todo: failed populating
@@ -1543,7 +1716,7 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
 
     // Theme
     // todo: support custom themes
-    _node.append_child("gui_theme").text().set(bUseDarkTheme?ofxSA_GUI_THEME_DARK:ofxSA_GUI_THEME_LIGHT);
+    _node.append_child("gui_theme").text().set(themeID);
 
     // Logging
     _node.append_child("show_log_window").text().set(bShowLogs?true:false);
@@ -1596,15 +1769,7 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
     }
 
     // Grab theme
-    switch(_node.child("gui_theme").text().as_int(ofxSA_GUI_THEME_DEFAULT)){
-        case ofxSA_GUI_THEME_LIGHT:
-            bUseDarkTheme = false;
-        break;
-        case ofxSA_GUI_THEME_DARK:
-        default:
-            bUseDarkTheme = true;
-        break;
-    }
+    themeID = _node.child("gui_theme").text().as_int(ofxSA_GUI_THEME_DEFAULT);
     loadImGuiTheme();
 
     // Logging window visibility
@@ -1654,4 +1819,21 @@ void ofxSimpleApp::onCanvasViewportResize(ofRectangle& args){
 void ofxSimpleApp::onCanvasContentResize(ContentResizeArgs& _args){
     onContentResize(_args.width*_args.scale, _args.height*_args.scale);
 }
+#endif
+
+#ifdef ofxSA_TEXRECORDER_ENABLE
+#	ifdef ofxSA_TIMELINE_ENABLE
+bool ofxSimpleApp::onTimelineRestart(std::size_t& _loopCount){
+	if(isRecordingCanvas && bRecorderStopOnLoop && _loopCount>0){
+		stopRecordingCanvas();
+	}
+	return true;
+}
+bool ofxSimpleApp::onTimelineStop(){
+	if(isRecordingCanvas){
+		stopRecordingCanvas();
+	}
+	return true;
+}
+#	endif
 #endif
