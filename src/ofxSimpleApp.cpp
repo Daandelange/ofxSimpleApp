@@ -131,7 +131,7 @@ void ofxSimpleApp::setup(){
 	// Output FBO / Canvas setup
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 	canvas.setCanvasSize(ofxSA_CANVAS_OUTPUT_DEFAULT_WIDTH, ofxSA_CANVAS_OUTPUT_DEFAULT_HEIGHT);
-	canvas.setScreenRect(); // todo: make this use viewports ?
+    canvas.setViewportRect(); // todo: make this use viewports ?
 	ofAddListener(canvas.onViewportResize, this, &ofxSimpleApp::onCanvasViewportResize);
 	ofAddListener(canvas.onContentResize, this, &ofxSimpleApp::onCanvasContentResize);
 #endif
@@ -210,6 +210,13 @@ void ofxSimpleApp::update(){
 
 //--------------------------------------------------------------
 void ofxSimpleApp::draw(){
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TS_SCOPE("ofxSimpleApp::draw()");
+#endif
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TSGL_START("ofxSimpleApp::draw()");
+#endif
+
 #ifdef ofxSA_TIMELINE_ENABLE
     ofxSA_TIMELINE_GET(timeline).tickFrame();
 #endif
@@ -218,7 +225,13 @@ void ofxSimpleApp::draw(){
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.fbo.begin();
 #endif
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TS_START("ofxSimpleApp::drawScene()");
+#endif
     drawScene();
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TS_STOP("ofxSimpleApp::drawScene()");
+#endif
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.fbo.end();
 #endif
@@ -228,6 +241,9 @@ void ofxSimpleApp::draw(){
     canvas.draw();
 #endif
 
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TS_START("Export Output");
+#endif
 #ifdef ofxSA_SYPHON_OUTPUT
     publishSyphonTexture();
 #endif
@@ -235,8 +251,21 @@ void ofxSimpleApp::draw(){
 #ifdef ofxSA_TEXRECORDER_ENABLE
     recordCanvasFrame();
 #endif
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TS_STOP("Export Output");
+#endif
 
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TS_START("Render Gui");
+#endif
     renderGui();
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TS_STOP("Render Gui");
+#endif
+
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+    TSGL_STOP("ofxSimpleApp::draw()");
+#endif
 }
 
 //--------------------------------------------------------------
@@ -558,7 +587,7 @@ void ofxSimpleApp::renderGui(){
 
         // Force metrics at the end of ImGui submissions
         if(bShowImGuiDemo)          ImGui::ShowDemoWindow(&bShowImGuiDemo);
-        if(bShowImGuiDebugWindow)   ImGui::ShowDebugLogWindow(&bShowImGuiDebugWindow);
+        if(bShowImGuiDebugLog)   ImGui::ShowDebugLogWindow(&bShowImGuiDebugLog);
         if(bShowImGuiMetrics)       ImGui::ShowMetricsWindow(&bShowImGuiMetrics);
 
         gui.end();
@@ -1178,7 +1207,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 #ifdef ofxSA_DEBUG
                 ImGui::SeparatorText("ImGui Develop");
                 ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
-                ImGui::Checkbox("Show ImGui Debug Window", &bShowImGuiDebugWindow);
+                ImGui::Checkbox("Show ImGui Debug Window", &bShowImGuiDebugLog);
                 ImGui::Checkbox("Show ImGui Demo Window", &bShowImGuiDemo);
 #endif
                 ImGui::EndMenu();
@@ -1602,7 +1631,7 @@ void ofxSimpleApp::onImguiViewportChange(){
     // Update canvas
 #   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     ofRectangle vp = getGuiViewport(false);
-    canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
+    canvas.setViewportRect(vp.width, vp.height, vp.x, vp.y);
 #   endif
 }
 #endif // ofxSA_UI_DOCKING_ENABLE_DOCKSPACES
@@ -1611,7 +1640,7 @@ void ofxSimpleApp::onViewportChange(){
     // Update canvas
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     //ofRectangle vp = getGuiViewport();
-    //canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
+    //canvas.setViewportRect(vp.width, vp.height, vp.x, vp.y);
 #endif
 }
 

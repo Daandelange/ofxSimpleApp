@@ -90,7 +90,7 @@ protected:
 		bool bDebugGlobal = false;
 		bool bShowImGuiMetrics = false;
 		bool bShowImGuiDemo = false;
-		bool bShowImGuiDebugWindow = false; // todo: rename bShowImGuiDebugLog
+        bool bShowImGuiDebugLog = false;
 		float FPSHistory[ofxSA_FPS_HISTORY_SIZE];
 		static const int curYear;
 		static ofxImGui::BaseTheme* imguiTheme;
@@ -195,7 +195,6 @@ protected:
 		bool bRecordAudioToo = false; // Unsupported yet ???
 		std::string getNextRecordingName();
 		static bool formatPngFilePath(std::string& _string, unsigned int _frame);
-		bool bRecordNextFrame = false; // todo: move to vmapper
 		bool bThreadedRecording = true;
 		static void threadFnSavePng(const ofPixels& _pixels, std::string _filePath);
 		const char* selectedCodec = nullptr;//ofxSA_TEXRECORDER_DEFAULT_CODEC;
