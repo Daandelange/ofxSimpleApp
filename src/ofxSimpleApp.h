@@ -79,6 +79,9 @@ class ofxSimpleApp : public ofBaseApp {
 		virtual void audioRequested(float * output, int bufferSize, int nChannels) override;
 
 protected:
+        // Internals
+        bool bExitOnNextUpdate = false;
+
 		// Main GUI
 		ofxImGui::Gui gui;
 		bool bShowGui = false;
@@ -89,38 +92,24 @@ protected:
 		bool bShowImGuiDebugWindow = false; // todo: rename bShowImGuiDebugLog
 		float FPSHistory[ofxSA_FPS_HISTORY_SIZE];
 		static const int curYear;
-
 		static ofxImGui::BaseTheme* imguiTheme;
         static unsigned int themeID;
-		bool bExitOnNextUpdate = false;
+        float imguiMenuHeight = -1;
 
 		void loadImGuiTheme();
 		void ImGuiDrawMenuBar();
 		void ImGuiDrawAboutWindow();
 #if ofxSA_UI_DOCKING_ENABLE_DOCKSPACES == 1
 		void ImGuiDrawDockingSpace();
-		ofRectangle dockingViewport;
-		void onImguiViewportChange(){
-			// Update canvas
-#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-			ofRectangle vp = getViewport();
-			canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
-#   endif
-		}
+        ofRectangle dockingViewport; // Note: imgui coordinates (window/screen coords depending on ImGuiConfigFlags_ViewportsEnable)
+        void onImguiViewportChange();
 #endif
-		virtual void onViewportChange(){
-			// Update canvas
-#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-			//ofRectangle vp = getViewport();
-			//canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
-#endif
-		}
+        virtual void onViewportChange();
 
-		virtual void onContentResize(unsigned int _width, unsigned int _height){
+        virtual void onContentResize(unsigned int _width, unsigned int _height);
 
-		}
 		//void updateViewport();
-		ofRectangle getViewport() const;
+        ofRectangle getGuiViewport(bool returnScreenCoords=false) const;
 		//ofRectangle curViewport;
 
 		// Xml settings
@@ -169,7 +158,7 @@ protected:
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 	public:
 		unsigned int getCanvasResolutionX() const;
-		unsigned int getCanvasResolutiony() const;
+        unsigned int getCanvasResolutionY() const;
 		void onCanvasViewportResize(ofRectangle& args);
 		void onCanvasContentResize(ContentResizeArgs& _args);
 	protected:

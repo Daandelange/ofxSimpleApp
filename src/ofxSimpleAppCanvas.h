@@ -55,7 +55,7 @@ class ofxSimpleAppCanvas {
 
         glm::vec2 getViewTranslation() const;
 
-        void setScreenRect(unsigned int _width=ofGetWidth(), unsigned int _height=ofGetHeight(), unsigned int _x=0, unsigned int _y=0);
+        void setScreenRect(unsigned int _width=ofGetWidth(), unsigned int _height=ofGetHeight(), int _x=0, int _y=0);
 
         ofRectangle getScreenRect() const;
         ofRectangle getContentProjection() const;
@@ -92,7 +92,7 @@ class ofxSimpleAppCanvas {
         // Event emitters for listening to updates
     public:
         ofEvent<ContentResizeArgs> onContentResize;
-        ofEvent<ofRectangle> onViewportResize;
+        ofEvent<ofRectangle> onViewportResize; // Arg = Window coordinates
 };
 
 

@@ -93,14 +93,15 @@ glm::vec2 ofxSimpleAppCanvas::getViewTranslation() const {
     return viewTranslation;
 }
 
-void ofxSimpleAppCanvas::setScreenRect(unsigned int _width, unsigned int _height, unsigned int _x, unsigned int _y){
+// Sets the viewport position in the ofAppWindow
+void ofxSimpleAppCanvas::setScreenRect(unsigned int _width, unsigned int _height, int _x, int _y){
     screenRect.x=_x;
     screenRect.y=_y;
     screenRect.width=_width;
     screenRect.height=_height;
     bFlagRepaint = true;
 
-    //ofRectangle eventArgs = ofRectangle(width, height);
+    //ofRectangle eventArgs = ofRectangle(width, height); in screen coords
     ofNotifyEvent(onViewportResize, screenRect, this);
 }
 
@@ -110,7 +111,7 @@ ofRectangle ofxSimpleAppCanvas::getScreenRect() const {
 
 ofRectangle ofxSimpleAppCanvas::getContentProjection() const {
     ofRectangle vp = getScreenRect();
-    glm::vec2 contentSize = getCanvasResolution();//blend2d.getSize();
+    glm::vec2 contentSize = getCanvasResolution();
     float viewZoom = getViewZoom();
 
     ofRectangle textureArea = {0,0,vp.width*scale, vp.height*scale};
@@ -156,7 +157,7 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
     ImGui::SeparatorText("Output Canvas");
 
     bool reAllocate = false;
-    if(fbo.isAllocated()) ImGui::Text("Resolution: %u x %u", getCanvasResolutionX(), getCanvasResolutionY());
+    if(fbo.isAllocated()) ImGui::Text("Resolution: %u x %u (ratio=%.2f)", getCanvasResolutionX(), getCanvasResolutionY(), (((float)getCanvasResolutionX())/getCanvasResolutionY()));
     else ImGui::Text("Resolution: [Not Allocated!]");
     //InputScalar(label, ImGuiDataType_S32, (void*)v, (void*)(step > 0 ? &step : NULL), (void*)(step_fast > 0 ? &step_fast : NULL), format, flags);
     static unsigned int pixelSteps[2] = {1, 10}; // Slow + Fast steps
@@ -172,8 +173,13 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
     if(reAllocate){
         setCanvasSize(width, height, scale);
     }
-    ofRectangle screenrect = getScreenRect();
-    ImGui::Text("Display Zone: pos=[%.0f, %.0f], size=%.0f x %.0f", screenrect.x, screenrect.y, screenrect.width, screenrect.height);
+    if(ImGui::TreeNode("Canvas Viewport")){
+        ImGui::BulletText("Position=[%.0f, %.0f]", screenRect.x, screenRect.y);
+        ImGui::BulletText("Size=%.0f x %.0f", screenRect.width, screenRect.height);
+        ImGui::BulletText("Ratio=%.2f", screenRect.width/screenRect.height);
+        ImGui::Checkbox("Highlight viewport", &bDrawScreenRect);
+        ImGui::TreePop();
+    }
 }
 
 // Viewport controls, ImGui HUD
@@ -196,8 +202,16 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 
     //glm::vec2 hudSize = { screenRect.width, ImGui::GetFrameHeight());
-    float hudHeight = ImGui::GetFrameHeightWithSpacing()+4;
+    const float hudHeight = ImGui::GetFrameHeightWithSpacing()+4; // fixme hardcoded stuff
     ImVec4 hudRect = { screenRect.x, screenRect.y+screenRect.height-hudHeight, screenRect.width, hudHeight };
+    ImVec2 hudPosScreen = { hudRect.x, hudRect.y };
+
+    // Make hudrect absolute screen coords ?
+    if(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable ){
+        hudRect.x += ofGetWindowPositionX();
+        hudRect.y += ofGetWindowPositionY();
+    }
+
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, {hudRect.z, hudRect.w});
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImGui::GetColorU32(ImGuiCol_WindowBg, .5));
@@ -206,8 +220,8 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
     //ImGui::SetNextWindowSizeConstraints({hudRect.z, hudRect.w}, {hudRect.z, hudRect.w});
     if(ImGui::Begin("Canvas Viewport HUD", NULL, windowFlags)){
         ImGui::PushItemWidth(50);
-        ImGui::SetWindowSize({hudRect.z, hudRect.w}, ImGuiCond_Always);
-        ImDrawList* dl = ImGui::GetWindowDrawList();
+        //ImGui::SetWindowSize({hudRect.z, hudRect.w}, ImGuiCond_Always);
+        //ImDrawList* dl = ImGui::GetWindowDrawList();
 
         ImGui::Spacing();
         ImGui::SameLine();

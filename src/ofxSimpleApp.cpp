@@ -116,6 +116,7 @@ void ofxSimpleApp::setup(){
 #endif
         );
     gui.setup(theme, false, ofxSA_UI_IMGUI_CONFIGFLAGS, ofxSA_UI_RESTORE_STATE);
+    imguiMenuHeight = ImGui::GetFrameHeight(); // Initial value, will be overwritten when menu is drawn
 
 #ifdef ofxSA_GUI_DEFAULT_HIDDEN
     bShowGui = !ofxSA_GUI_DEFAULT_HIDDEN;
@@ -310,14 +311,17 @@ bool ofxSimpleApp::formatPngFilePath(std::string& _string, unsigned int _frame){
 }
 
 bool ofxSimpleApp::startRecordingCanvas(){
+    // Checks
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     if(!canvas.fbo.getTexture().isAllocated()){
         ofLogNotice("ofxSimpleApp::startRecordingCanvas()") << "Can't start recording, the canvas is not allocated !";
         return false;
     }
+#   endif
 
+    // Sync timeline
 	ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
 	tl.startNextFrame(glm::max(0,recordFrameRange[0]));
-
 
     // Set new target file
     curRecordingName = ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER;
@@ -329,8 +333,12 @@ bool ofxSimpleApp::startRecordingCanvas(){
 
         // Recording settings
         m_Recorder.setVideoCodec(selectedCodec);
-        auto cnvPxFormat = canvas.fbo.getTexture().getTextureData().glInternalFormat;
-        auto ffmpegFormat = glFormatToFFmpeg(cnvPxFormat);
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+        int srcPxFormat = canvas.fbo.getTexture().getTextureData().glInternalFormat;
+        auto ffmpegFormat = glFormatToFFmpeg(srcPxFormat);
+#   else
+        auto ffmpegFormat = glFormatToFFmpeg(GL_BGRA);
+#   endif
         if(ffmpegFormat.length()<1)
             ofLogWarning("ofxSimpleApp::startRecordingCanvas()") << "The canvas has an unsupported pixel format, you have to map your GL_format to the ffmpeg pixel format !";
         m_Recorder.setInputPixelFormat(ffmpegFormat);
@@ -344,8 +352,13 @@ bool ofxSimpleApp::startRecordingCanvas(){
         m_Recorder.setRecordAudio(bRecordAudioToo); // todo: make optional
         m_Recorder.setCaptureDuration(duration);//tl.getDuration());
         m_Recorder.setFps(tl.getFps());
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
         m_Recorder.setWidth(canvas.getCanvasWidth());
         m_Recorder.setHeight(canvas.getCanvasHeight());
+#   else
+        m_Recorder.setWidth(ofGetWidth());
+        m_Recorder.setHeight(ofGetHeight());
+#   endif
 
         ofLogNotice("ofxSimpleApp::startRecordingCanvas()")
                 << "Start recording FFMPEG to destination = " << curRecordingName
@@ -387,33 +400,37 @@ bool ofxSimpleApp::stopRecordingCanvas(){
 }
 
 void ofxSimpleApp::recordCanvasFrame(){
-    //static ofPixels mPix;
-    if (isRecordingCanvas && canvas.fbo.isAllocated()) {
+
+    if (isRecordingCanvas ) {
+        bool bDataLoaded = false;
+#   ifndef ofxSA_CANVAS_OUTPUT_ENABLE
+        // No FBO --> save window viewport
+        auto renderer = ofGetGLRenderer();
+        if(renderer != nullptr){
+            renderer->saveFullViewport(recordedPixels);
+            bDataLoaded = true;
+        }
+#   else
         // Read FBO to pixels
-#ifdef ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
-        bool bDataLoaded = true;
-        int glFormat = canvas.fbo.getTexture().texData.glInternalFormat;
+#       ifdef ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
         fastFboReader.setAsync(false);
-        fastFboReader.readToPixels(canvas.fbo, recordedPixels, ofGetImageTypeFromGLType(glFormat));
-#else
+        int glFormat = canvas.fbo.getTexture().texData.glInternalFormat;
+        bDataLoaded = fastFboReader.readToPixels(canvas.fbo, recordedPixels, ofGetImageTypeFromGLType(glFormat));
+#       else
         //canvas.fbo.updateTexture(0);
         canvas.fbo.readToPixels(recordedPixels); // slow OF way
-        bool bDataLoaded = true;
-#endif
-        // Got a frame ?
-        if(
-            // Got data ?
-            bDataLoaded &&
-            // Got valid pixels ?
-            (recordedPixels.getWidth() > 0 && recordedPixels.getHeight() > 0)
-        ){
+        bDataLoaded = true;
+#       endif
+#   endif
+
+        // Got a frame and valid data ?
+        if( bDataLoaded && (recordedPixels.getWidth() > 0 && recordedPixels.getHeight() > 0) ){
             recordCanvasPixels(recordedPixels);
         }
         // Error grabbing frame data
         else {
             // Todo: ofLogError....
             std::cout << "failed readToPixels !" << std::endl;
-            //canvas.fbo.readToPixels(mPix); // fallback on native pixels grabbing
         }
 	}
 }
@@ -568,29 +585,42 @@ void ofxSimpleApp::keyPressed(ofKeyEventArgs &e){
         // Fullscreen
         if(e.keycode == 70){ // 70 = F
             ofToggleFullscreen();
+            return;
         }
         // Show GUI
         else if(e.keycode == 71){ // 72 = G (H already taken in osx)
             toggleGui();
+            return;
         }
         // Exit ?
         else if(e.keycode == 81){ // 81 = Q
             ofExit();
+            return;
         }
         // Save ?
         else if(e.keycode == 83){ // 83 = S
             saveXmlSettings();
+            return;
         }
         // Load ?
         else if(e.keycode == 76){ // 76 = L
             loadXmlSettings();
+            return;
         }
     }
+
+    // Call parenting function, which eventually calls ofApp::keyPressed(int key) for users who implemented it
+    ofBaseApp::keyPressed(e);
 }
 
 ////--------------------------------------------------------------
 void ofxSimpleApp::keyReleased(ofKeyEventArgs &e){
+    // Don't interfere with ImGui
+    auto& io = ImGui::GetIO();
+    if(io.WantCaptureKeyboard) return;
 
+    // Call parenting function, which eventually calls ofApp::keyPressed(int key) for users who implemented it
+    ofBaseApp::keyPressed(e);
 }
 
 ////--------------------------------------------------------------
@@ -723,6 +753,18 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 #endif
                     ImGui::EndCombo();
                 }
+                if(ImGui::BeginMenu("Gui-Advanced")){
+                    ImGui::SeparatorText("ImGui.Configuration");
+                    ImGui::BeginDisabled(); // tmp, Fixme: Causes crashes swiching from a menu on window-focused-query, probably an imgui glfw backend bug
+                    ImGui::CheckboxFlags("Viewports", &ImGui::GetIO().ConfigFlags, ImGuiConfigFlags_ViewportsEnable);
+                    ImGui::EndDisabled();
+                    ImGui::CheckboxFlags("Gamepad Navigation", &ImGui::GetIO().ConfigFlags, ImGuiConfigFlags_NavEnableGamepad);
+                    ImGui::CheckboxFlags("Keyboard Navigation", &ImGui::GetIO().ConfigFlags, ImGuiConfigFlags_NavEnableKeyboard);
+                    ImGui::Checkbox("Draw software cursor", &ImGui::GetIO().MouseDrawCursor);
+
+                    ImGui::EndMenu();
+                }
+
                 // Todo : mouse pointer hide/show/auto options ?
 
                 ImGui::EndMenu();
@@ -1138,6 +1180,12 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
         // Spacer for custom menu items (after)
         ImGui::Text("\t");
+
+        // Update menu height
+        const float curMenuHeight = ImGui::GetWindowSize().y;
+        if(imguiMenuHeight != curMenuHeight){
+            imguiMenuHeight = curMenuHeight;
+        }
     }
 
     ImGui::EndMainMenuBar();
@@ -1505,9 +1553,10 @@ void ofxSimpleApp::ImGuiDrawDockingSpace(){
             //availableSpace.Max = availableSpace.Min + ImGui::GetContentRegionAvail();
             //ImGui::GetBackgroundDrawList()->AddRect(availableSpace.GetTL()+ImVec2(8,8), availableSpace.GetBR()-ImVec2(8,8), IM_COL32(255,50,50,255));
 
-            ImVec2 viewCenter = availableSpace.GetCenter();
+            //ImVec2 viewCenter = availableSpace.GetCenter();
+
             // Depending on the viewports flag, the XY is either absolute or relative to the oF window.
-            if(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable ) viewCenter = viewCenter - ImVec2(ofGetWindowPositionX(),ofGetWindowPositionY());
+            //if(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable ) viewCenter = viewCenter - ImVec2(ofGetWindowPositionX(),ofGetWindowPositionY());
 
 //            ofPushStyle();
 //            ofSetRectMode(OF_RECTMODE_CENTER);
@@ -1533,7 +1582,27 @@ void ofxSimpleApp::ImGuiDrawDockingSpace(){
         }
     }
 }
+
+void ofxSimpleApp::onImguiViewportChange(){
+    // Update canvas
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    ofRectangle vp = getGuiViewport(false);
+    canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
+#   endif
+}
+#endif // ofxSA_UI_DOCKING_ENABLE_DOCKSPACES
+
+void ofxSimpleApp::onViewportChange(){
+    // Update canvas
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    //ofRectangle vp = getGuiViewport();
+    //canvas.setScreenRect(vp.width, vp.height, vp.x, vp.y);
 #endif
+}
+
+void ofxSimpleApp::onContentResize(unsigned int _width, unsigned int _height){
+
+}
 
 #ifdef ofxSA_TIMELINE_ENABLE
 void ofxSimpleApp::ImGuiDrawTimeline(){
@@ -1559,28 +1628,29 @@ void ofxSimpleApp::ImGuiDrawTimeline(){
 //    }
 //}
 
-ofRectangle ofxSimpleApp::getViewport() const {
+// Returns the viewport visible within the GUI
+// Note: for the ofAppWindow viewport, use ofGetWindowRect();
+ofRectangle ofxSimpleApp::getGuiViewport(bool returnScreenCoords) const {
     // Set coords to window coords
-    ofRectangle curViewport(0,0, ofGetWidth(), ofGetHeight());
+    ofRectangle curViewport = ofGetWindowRect();
 
-//    curViewport.x = 0;
-//    curViewport.y = 0;
-//    curViewport.width = ofGetWidth();
-//    curViewport.height = ofGetHeight();
-
-    // Subtract gui zones
+    // Subtract gui zones if visible
     if(bShowGui){
-
 #if ofxSA_UI_DOCKING_ENABLE_DOCKSPACES == 1
         // Return visible zone (without docking spaces and menus)
-        return dockingViewport;
-#else
-        // Subtract Menu bar
-        float menuHeight = ImGui::GetFrameHeight();
-        curViewport.x += menuHeight;
-        curViewport.height -= menuHeight;
-#endif
+        curViewport = dockingViewport;
 
+        // Make them relative
+        if(!returnScreenCoords && ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable ){
+            curViewport.position.x -= ofGetWindowPositionX();
+            curViewport.position.y -= ofGetWindowPositionY();
+        }
+#else
+        // Subtract the ImGui menu bar
+        //float menuHeight = ImGui::GetFrameHeight();
+        curViewport.x += imguiMenuHeight;
+        curViewport.height -= imguiMenuHeight;
+#endif
     }
 
     return curViewport;
@@ -1826,7 +1896,7 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
 unsigned int ofxSimpleApp::getCanvasResolutionX() const {
     return canvas.getCanvasResolutionX();
 }
-unsigned int ofxSimpleApp::getCanvasResolutiony() const {
+unsigned int ofxSimpleApp::getCanvasResolutionY() const {
     return canvas.getCanvasResolutionY();
 }
 void ofxSimpleApp::onCanvasViewportResize(ofRectangle& args){

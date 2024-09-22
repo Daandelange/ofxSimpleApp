@@ -1,6 +1,7 @@
 #pragma once
 
 // To get OF constants
+#include <cassert>
 #include "ofConstants.h"
 #include "ofxSimpleAppConstants.h"
 
@@ -256,7 +257,8 @@
 #ifdef ofxSA_SYPHON_OUTPUT
     // Only allow on osx platforms
 #   ifndef TARGET_OSX
-#       pragma message "Warning: ofxSA_SYPHON_OUTPUT is only allowed on macos !"
+#       pragma message "Error: ofxSA_SYPHON_OUTPUT is only allowed on macos, disabling it !"
+//static_assert (true, "Error: ofxSA_SYPHON_OUTPUT is only allowed on macos !");
 #       undef ofxSA_SYPHON_OUTPUT
 #   endif
 #endif
