@@ -56,6 +56,7 @@ class ofxSimpleApp : public ofBaseApp {
 		void exit() override;
 		void update() override;
 		void draw() override;
+        virtual void drawScene();
 		virtual void drawGui();
 
 		void renderGui();

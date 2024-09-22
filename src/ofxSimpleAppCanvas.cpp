@@ -11,7 +11,7 @@ ContentResizeArgs::ContentResizeArgs(unsigned int _width, unsigned int _height, 
 
 
 ofxSimpleAppCanvas::ofxSimpleAppCanvas(unsigned int _width, unsigned int _height){
-    setScreenRect();
+    setViewportRect();
     setCanvasSize(_width, _height);
 }
 
@@ -51,7 +51,7 @@ unsigned int ofxSimpleAppCanvas::getCanvasResolutionY() const {
 
 // Returns current zoom level (in UI)
 float ofxSimpleAppCanvas::getViewZoom() const {
-    ofRectangle vp = screenRect;//getViewport();
+    ofRectangle vp = viewportRect;
     //glm::vec2 contentSize = getCanvasResolution();
     glm::vec2 contentSize = getCanvasSize();
 
@@ -94,23 +94,23 @@ glm::vec2 ofxSimpleAppCanvas::getViewTranslation() const {
 }
 
 // Sets the viewport position in the ofAppWindow
-void ofxSimpleAppCanvas::setScreenRect(unsigned int _width, unsigned int _height, int _x, int _y){
-    screenRect.x=_x;
-    screenRect.y=_y;
-    screenRect.width=_width;
-    screenRect.height=_height;
+void ofxSimpleAppCanvas::setViewportRect(unsigned int _width, unsigned int _height, int _x, int _y){
+    viewportRect.x=_x;
+    viewportRect.y=_y;
+    viewportRect.width=_width;
+    viewportRect.height=_height;
     bFlagRepaint = true;
 
     //ofRectangle eventArgs = ofRectangle(width, height); in screen coords
-    ofNotifyEvent(onViewportResize, screenRect, this);
+    ofNotifyEvent(onViewportResize, viewportRect, this);
 }
 
-ofRectangle ofxSimpleAppCanvas::getScreenRect() const {
-    return screenRect;
+ofRectangle ofxSimpleAppCanvas::getViewportRect() const {
+    return viewportRect;
 }
 
 ofRectangle ofxSimpleAppCanvas::getContentProjection() const {
-    ofRectangle vp = getScreenRect();
+    ofRectangle vp = getViewportRect();
     glm::vec2 contentSize = getCanvasResolution();
     float viewZoom = getViewZoom();
 
@@ -140,13 +140,32 @@ void ofxSimpleAppCanvas::draw(){
     if(fbo.isAllocated()){
         ofFill();
         ofSetColor(ofColor::white);
-        fbo.draw(0,0);//screenRect.x, screenRect.y, screenRect.width, screenRect.height);
+        //fbo.draw(0,0);//viewportRect.x, viewportRect.y, viewportRect.width, viewportRect.height);
+
+        ofRectangle cvp = getViewportRect();
+        ofRectangle ctextureArea = getContentProjection();
+        ofFill();
+        ofSetColor(ofColor::white);
+        fbo.getTexture(0).drawSubsection(cvp.x, cvp.y, cvp.width, cvp.height, ctextureArea.x, ctextureArea.y, ctextureArea.width, ctextureArea.height);
     }
-    if(bDrawScreenRect){
+    if(bDrawViewportOutline){
         ofNoFill();
         ofSetLineWidth(2);
         ofSetColor(ofColor::red);
-        ofDrawRectangle(screenRect);
+        ofDrawRectangle(viewportRect);
+    }
+    if(bDrawContentOutline){
+        float viewZoom = getViewZoom();
+        float scale = getScale();
+        ofRectangle contentArea = {
+            getViewportRect().getTopLeft()+(getViewTranslation()*-1.f*viewZoom/scale),
+            getCanvasSize().x/scale*viewZoom,
+            getCanvasSize().y/scale*viewZoom
+        };
+        ofNoFill();
+        ofSetLineWidth(2);
+        ofSetColor(ofColor::red);
+        ofDrawRectangle(contentArea);
     }
     ofPopStyle();
 }
@@ -174,10 +193,11 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
         setCanvasSize(width, height, scale);
     }
     if(ImGui::TreeNode("Canvas Viewport")){
-        ImGui::BulletText("Position=[%.0f, %.0f]", screenRect.x, screenRect.y);
-        ImGui::BulletText("Size=%.0f x %.0f", screenRect.width, screenRect.height);
-        ImGui::BulletText("Ratio=%.2f", screenRect.width/screenRect.height);
-        ImGui::Checkbox("Highlight viewport", &bDrawScreenRect);
+        ImGui::BulletText("Position=[%.0f, %.0f]", viewportRect.x, viewportRect.y);
+        ImGui::BulletText("Size=%.0f x %.0f", viewportRect.width, viewportRect.height);
+        ImGui::BulletText("Ratio=%.2f", viewportRect.width/viewportRect.height);
+        ImGui::Checkbox("Highlight viewport", &bDrawViewportOutline);
+        ImGui::Checkbox("Outline content borders", &bDrawContentOutline);
         ImGui::TreePop();
     }
 }
@@ -201,9 +221,9 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, {2,0});
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
 
-    //glm::vec2 hudSize = { screenRect.width, ImGui::GetFrameHeight());
+    //glm::vec2 hudSize = { viewportRect.width, ImGui::GetFrameHeight());
     const float hudHeight = ImGui::GetFrameHeightWithSpacing()+4; // fixme hardcoded stuff
-    ImVec4 hudRect = { screenRect.x, screenRect.y+screenRect.height-hudHeight, screenRect.width, hudHeight };
+    ImVec4 hudRect = { viewportRect.x, viewportRect.y+viewportRect.height-hudHeight, viewportRect.width, hudHeight };
     ImVec2 hudPosScreen = { hudRect.x, hudRect.y };
 
     // Make hudrect absolute screen coords ?
@@ -250,22 +270,21 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
         ImGui::SameLine();
         ImGui::Spacing();
 
-        ImGui::SameLine();
-        if(ImGui::Button("-##zoom")){
-            viewZoom = (round(viewZoom/0.25)*0.25 - 0.25);
-        }
-        ImGui::SameLine();
-        if(ImGui::Button("+##zoom")){
-            viewZoom = (round(viewZoom/0.25)*0.25 + 0.25);
-        }
-        //float _viewZoom = viewZoom;
-        ImGui::SameLine();
-        if(ImGui::DragFloat("Zoom##canvas", &viewZoom, 0.001f, 0, 10)){
+        if(contentDrawMode == CanvasDrawMode_Manual){
+            ImGui::SameLine();
+            if(ImGui::Button("-##zoom")){
+                viewZoom = (round(viewZoom/0.25)*0.25 - 0.25);
+            }
+            ImGui::SameLine();
+            if(ImGui::Button("+##zoom")){
+                viewZoom = (round(viewZoom/0.25)*0.25 + 0.25);
+            }
+            ImGui::SameLine();
+            ImGui::DragFloat("Zoom##canvas", &viewZoom, 0.001f, 0, 10);
 
+            ImGui::SameLine();
+            ImGui::Spacing();
         }
-
-        ImGui::SameLine();
-        ImGui::Spacing();
 
         ImGui::SameLine();
         ImGui::Button("[+]##canvasview");
@@ -273,6 +292,12 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
             ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
             viewTranslation.x += delta.x;
             viewTranslation.y += delta.y;
+        }
+        else if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary)){
+            if(ImGui::BeginTooltip()){
+                ImGui::Text("(drag to translate)");
+            }
+            ImGui::EndTooltip();
         }
         ImGui::SameLine();
         ImGui::DragFloat("X##canvasviewT", &viewTranslation.x, 1.f, -5000, +5000,"%.0f");
@@ -306,6 +331,9 @@ bool ofxSimpleAppCanvas::populateXmlNode(pugi::xml_node &_node){
     _node.append_child("height").text().set(height);
     _node.append_child("scale").text().set(scale);
 
+    // View
+    _node.append_child("viewmode").text().set(contentDrawMode);
+
     return true;
 }
 
@@ -313,6 +341,7 @@ bool ofxSimpleAppCanvas::retrieveXmlNode(pugi::xml_node &_node){
     pugi::xml_node wNode = _node.child("width");
     pugi::xml_node hNode = _node.child("height");
     pugi::xml_node sNode = _node.child("scale");
+    pugi::xml_node vmNode = _node.child("viewmode");
 
     if(wNode && hNode && sNode){
         setCanvasSize(
@@ -320,7 +349,7 @@ bool ofxSimpleAppCanvas::retrieveXmlNode(pugi::xml_node &_node){
             hNode.text().as_uint(),
             sNode.text().as_float()
         );
-
+        contentDrawMode = (CanvasDrawMode) vmNode.text().as_int();
         return true;
     }
     return false;

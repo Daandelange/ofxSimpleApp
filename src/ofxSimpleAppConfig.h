@@ -105,6 +105,8 @@
 #endif
 //#define ofxSA_TEXTURE_LIMIT_PX
 
+// todo: VSync, BG-clearing, antialiasing, etc ?
+
 //#define ofxSA_ENABLE_PROFILING
 
 // XML

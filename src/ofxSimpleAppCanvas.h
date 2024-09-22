@@ -55,16 +55,17 @@ class ofxSimpleAppCanvas {
 
         glm::vec2 getViewTranslation() const;
 
-        void setScreenRect(unsigned int _width=ofGetWidth(), unsigned int _height=ofGetHeight(), int _x=0, int _y=0);
+        void setViewportRect(unsigned int _width=ofGetWidth(), unsigned int _height=ofGetHeight(), int _x=0, int _y=0);
 
-        ofRectangle getScreenRect() const;
+        ofRectangle getViewportRect() const;
         ofRectangle getContentProjection() const;
 
         void draw();
         void drawGuiSettings();
         void drawGuiViewportHUD();
 
-        bool bDrawScreenRect = true;//false;
+        bool bDrawViewportOutline = false;
+        bool bDrawContentOutline = true;
         CanvasDrawMode contentDrawMode = CanvasDrawMode_Manual;
 
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
@@ -87,7 +88,7 @@ class ofxSimpleAppCanvas {
     public:
         ofFbo fbo;
     private:
-        ofRectangle screenRect; // draw area
+        ofRectangle viewportRect; // draw area
 
         // Event emitters for listening to updates
     public:

@@ -214,6 +214,16 @@ void ofxSimpleApp::draw(){
     ofxSA_TIMELINE_GET(timeline).tickFrame();
 #endif
 
+    // Call custom user draw function before drawing the texture
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    canvas.fbo.begin();
+#endif
+    drawScene();
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    canvas.fbo.end();
+#endif
+
+    // Draw canvas texture to viewport
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.draw();
 #endif
@@ -227,6 +237,11 @@ void ofxSimpleApp::draw(){
 #endif
 
     renderGui();
+}
+
+//--------------------------------------------------------------
+void ofxSimpleApp::drawScene(){
+
 }
 
 //--------------------------------------------------------------
