@@ -81,6 +81,7 @@ struct ofxSATimeRamps {
     float barElapsed; // bar counter
     float barProgress; // (linearly 0 to 1 each bar)
     float barPulse; // (a very short and smoothed impulse on each bar start)
+    float barStep; //  Bar number, from 0 to 1
     //double barRandom; //
 
     // Beats
@@ -102,7 +103,7 @@ protected:
     ofxSATimeRamps();
 
     void initializeRamps();
-    void updateRamps(double elapsedSeconds, const ofxSATimeSignature& _ts);
+    void updateRamps(double elapsedSeconds, const ofxSATimeSignature& _ts, const double& _duration);
 };
 
 // - - - - - - - - - -
@@ -221,6 +222,7 @@ public:
 
     // FPS
     unsigned int getFps() const;
+    void setFps(unsigned int _fps);
 
     const ofxSATimeSignature& getTimeSignature() const;
     const ofxSATimeCounters& getCounters() const;

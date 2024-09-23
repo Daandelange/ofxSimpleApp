@@ -137,9 +137,16 @@ void ofxSimpleApp::setup(){
 #endif
 
 #ifdef ofxSA_TIMELINE_ENABLE
+    ofxSA_TIMELINE_GET(timeline).setFps(ofxSA_FPS_CAP);
+
 #	if ofxSA_TIMELINE_AUTOSTART == true
 	ofxSA_TIMELINE_GET(timeline).start();
 #	endif
+
+#   ifdef ofxSA_TEXRECORDER_ENABLE
+    ofAddListener(ofxSA_TIMELINE_GET(timeline).onStart, this, &ofxSimpleApp::onTimelineRestart);
+    ofAddListener(ofxSA_TIMELINE_GET(timeline).onStop, this, &ofxSimpleApp::onTimelineStop);
+#   endif
 #endif
 
 #ifdef ofxSA_TEXRECORDER_ENABLE
@@ -165,11 +172,6 @@ void ofxSimpleApp::setup(){
     
     // Configure FBO reader
     //fastFboReader.setAsync(false);
-
-#   ifdef ofxSA_TIMELINE_ENABLE
-    ofAddListener(ofxSA_TIMELINE_GET(timeline).onStart, this, &ofxSimpleApp::onTimelineRestart);
-    ofAddListener(ofxSA_TIMELINE_GET(timeline).onStop, this, &ofxSimpleApp::onTimelineStop);
-#   endif
 #endif
 
 	// Restore settings on launch
@@ -183,10 +185,13 @@ void ofxSimpleApp::exit(){
 	if(isRecordingCanvas){
 		stopRecordingCanvas();
 	}
+
 	// Remove listeners
 #   ifdef ofxSA_TIMELINE_ENABLE
+#       ifdef ofxSA_TEXRECORDER_ENABLE
     ofRemoveListener(ofxSA_TIMELINE_GET(timeline).onStart, this, &ofxSimpleApp::onTimelineRestart);
     ofRemoveListener(ofxSA_TIMELINE_GET(timeline).onStop, this, &ofxSimpleApp::onTimelineStop);
+#       endif
 #   endif
 #endif
 }
@@ -583,6 +588,7 @@ void ofxSimpleApp::renderGui(){
         TS_SCOPE("GUI Compositing");
 #endif
         gui.begin();
+
         drawGui();
 
         // Force metrics at the end of ImGui submissions
@@ -592,13 +598,7 @@ void ofxSimpleApp::renderGui(){
 
         gui.end();
 
-#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
-    TSGL_START("GUI Rendering");
-#endif
         gui.draw();
-#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
-    TSGL_STOP("GUI Rendering");
-#endif
     }
 }
 
@@ -624,37 +624,42 @@ void ofxSimpleApp::keyPressed(ofKeyEventArgs &e){
     auto& io = ImGui::GetIO();
     if(io.WantCaptureKeyboard) return;
 
+    bool doBubble = false;
+#if defined(ofxSA_TIMELINE_PAUSE_KEY) && ofxSA_TIMELINE_PAUSE_KEY != 0
+    if(e.key == 32){ // 32 = SPACE
+        ofxSA_TIMELINE_GET(timeline).togglePause();
+    }
+    else
+#endif
+
     // Check keyboard shortcuts
     if(e.hasModifier(MOD_KEY)){
         // Fullscreen
         if(e.keycode == 70){ // 70 = F
             ofToggleFullscreen();
-            return;
         }
         // Show GUI
         else if(e.keycode == 71){ // 72 = G (H already taken in osx)
             toggleGui();
-            return;
         }
         // Exit ?
         else if(e.keycode == 81){ // 81 = Q
             ofExit();
-            return;
         }
         // Save ?
         else if(e.keycode == 83){ // 83 = S
             saveXmlSettings();
-            return;
         }
         // Load ?
         else if(e.keycode == 76){ // 76 = L
             loadXmlSettings();
-            return;
         }
+        else doBubble = true;
     }
+    else doBubble = true;
 
     // Call parenting function, which eventually calls ofApp::keyPressed(int key) for users who implemented it
-    ofBaseApp::keyPressed(e);
+    if(doBubble) ofBaseApp::keyPressed(e);
 }
 
 ////--------------------------------------------------------------
@@ -811,6 +816,43 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
                 // Todo : mouse pointer hide/show/auto options ?
 
+#ifdef ofxSA_DEBUG
+#   ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+                ImGui::SeparatorText("ofxTimeMeasurements");
+                bool tsEnabled = TIME_SAMPLE_GET_ENABLED();
+                if(ImGui::Checkbox("Show TimeMeasurements", &tsEnabled)){
+                    TIME_SAMPLE_SET_ENABLED(tsEnabled);
+                }
+                // 	TIME_MEASUREMENTS_TOP_LEFT, TIME_MEASUREMENTS_TOP_RIGHT, TIME_MEASUREMENTS_BOTTOM_LEFT, TIME_MEASUREMENTS_BOTTOM_RIGHT
+                static const char* tsPosOptions[] = {
+                    "Top Left",
+                    "Top Right",
+                    "Bottom Left",
+                    "Bottom Right"
+                };
+                ofxTMDrawLocation tsCurPos = TIME_SAMPLE_GET_INSTANCE()->getDrawLocation();
+                if(ImGui::BeginCombo("Draw location", tsPosOptions[tsCurPos])){
+                    if(ImGui::Selectable(tsPosOptions[TIME_MEASUREMENTS_TOP_LEFT])){
+                        TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_TOP_LEFT);
+                    }
+                    if(ImGui::Selectable(tsPosOptions[TIME_MEASUREMENTS_TOP_RIGHT])){
+                        TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_TOP_RIGHT);
+                    }
+                    if(ImGui::Selectable(tsPosOptions[TIME_MEASUREMENTS_BOTTOM_LEFT])){
+                        TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_LEFT);
+                    }
+                    if(ImGui::Selectable(tsPosOptions[TIME_MEASUREMENTS_BOTTOM_RIGHT])){
+                        TIME_SAMPLE_SET_DRAW_LOCATION(TIME_MEASUREMENTS_BOTTOM_RIGHT);
+                    }
+                    ImGui::EndCombo();
+                }
+
+                if(ImGui::Button("Sync FPS with document")){
+                    TIME_SAMPLE_SET_FRAMERATE(ofGetTargetFrameRate());
+                }
+#   endif
+#endif
+
                 ImGui::EndMenu();
             }
 
@@ -859,6 +901,11 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 if(ImGui::Button("Apply")){
                     ImGui::CloseCurrentPopup();
                     ofSetFrameRate(newTargetFPS);
+
+                    // Sync
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+                    TIME_SAMPLE_SET_FRAMERATE(newTargetFPS);
+#endif
                 }
 
                 // VSync setter (OF provides no getter...)
@@ -1205,7 +1252,15 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 }
 
 #ifdef ofxSA_DEBUG
-                ImGui::SeparatorText("ImGui Develop");
+#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+                ImGui::SeparatorText("ofxTimeMeasurements");
+                bool tsEnabled = TIME_SAMPLE_GET_ENABLED();
+                if(ImGui::Checkbox("Show TimeMeasurements", &tsEnabled)){
+                    TIME_SAMPLE_SET_ENABLED(tsEnabled);
+                }
+#endif
+
+                ImGui::SeparatorText("ImGui Dev");
                 ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
                 ImGui::Checkbox("Show ImGui Debug Window", &bShowImGuiDebugLog);
                 ImGui::Checkbox("Show ImGui Demo Window", &bShowImGuiDemo);
@@ -1807,7 +1862,7 @@ bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
     success *= ofxSimpleApp::ofxSA_populateXmlSettings(ofxSimpleAppSettingsNode);
 
     pugi::xml_node customAppSettingsNode = doc.append_child(ofxSA_APP_ID);
-    success *= populateXmlSettings(customAppSettingsNode);
+    success *= populateXmlSettings(customAppSettingsNode);  // fixme : maybe this should be 2 different functions. If unimplemented by user, ofxSimpleApp::pxs is called twice ! What if user calls ofxSimpleApp::pxs manually ?
 
     if(success){
         // Save !
@@ -1845,7 +1900,6 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     _node.append_child("app_name").text().set(ofxSA_APP_NAME);
 
     // Theme
-    // todo: support custom themes
     _node.append_child("gui_theme").text().set(themeID);
 
     // Logging

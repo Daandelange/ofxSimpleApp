@@ -291,10 +291,15 @@
 #	else
 #       define ofxSA_TIMELINE_GET(varname) varname
 #   endif
+//  Timeline play/pause default key (false=disabled, char or OF_KEY_...)
+#   ifndef ofxSA_TIMELINE_PAUSE_KEY
+#       define ofxSA_TIMELINE_PAUSE_KEY ' '
+#   endif
 #else
 #   undef ofxSA_TIMELINE_AUTOSTART
 #   undef ofxSA_TIMELINE_SINGLETON
 #   undef ofxSA_TIMELINE_GET
+#   undef ofxSA_TIMELINE_PAUSE_KEY
 #endif
 
 // Texture Recorder
@@ -419,6 +424,10 @@
 //#define ofxSA_GLES_VERSION 3
 
 // - - - -
+// DEBUG
+//#define ofxSA_DEBUG
+
+// - - - -
 // Features: Opt-Outs
 //#define ofxSA_NO_FBO
 
@@ -439,7 +448,7 @@
 //#define ofxSA_TIMELINE_ENABLE
 //#define ofxSA_TIMELINE_AUTOSTART true
 //#define ofxSA_TIMELINE_SINGLETON true
-
+//#define ofxSA_TIMELINE_PAUSE_KEY ' ' // false to disable, or key, or OF_KEY_XXX
 
 //#define ofxSA_TEXRECORDER_ENABLE
 //#define ofxSA_TEXRECORDER_DEFAULT_CODEC "h264"

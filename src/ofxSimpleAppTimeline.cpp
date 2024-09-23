@@ -41,6 +41,7 @@ ofxSATimeRamps::ofxSATimeRamps() {
 void ofxSATimeRamps::initializeRamps() {
     barProgress = 0.0;
     barPulse = 0.0;
+    barStep = 0.0;
     beatProgress = 0.0;
     beatPulse = 0.0;
     beatStep = 0.0;
@@ -49,7 +50,7 @@ void ofxSATimeRamps::initializeRamps() {
     noteStep = 0.0;
 }
 
-void ofxSATimeRamps::updateRamps(double elapsedSeconds, const ofxSATimeSignature& _ts) {
+void ofxSATimeRamps::updateRamps(double elapsedSeconds, const ofxSATimeSignature& _ts, const double& _duration) {
 
     // Todo: align playhead on FPS frames before (optionally?), to ensure reaching 0 and 1 in-between frames ???
     // (FPS aren't aligned on the BPM grid)
@@ -59,6 +60,9 @@ void ofxSATimeRamps::updateRamps(double elapsedSeconds, const ofxSATimeSignature
     barElapsed = elapsedSeconds / secondsPerBar;
     barProgress = std::fmod(barElapsed, 1.0);
     barPulse = (barProgress < 0.04 || barProgress >= 1.0) ? 1.0 : 0.0;
+    const float totalBars = _duration > secondsPerBar ? (_duration / secondsPerBar) : (_ts.bpm / _ts.beatsPerBar); // Note: Infinite duration falls back on 1 min
+    if(totalBars > 1) barStep = std::fmod( glm::floor(elapsedSeconds / secondsPerBar), totalBars)/(totalBars-1);
+    else barStep = 0;
 
     // Beats
     double secondsPerBeat = _ts.getBeatDurationSecs();//60.0 / _ts.bpm;
@@ -401,7 +405,6 @@ void ofxSATimeline::tickPlayHead(const bool isNewFrame){
 
         if (playbackMode == ofxSATimelineMode_RealTime_Absolute) {
             auto elapsed_time = std::chrono::duration<double>(current_time - start_time) * playSpeed;
-
             if(isNewFrame) counters.tDelta = elapsed_time.count(); // Tmp, fixme: when no newFrame, time is lost...
             if(playSpeed<0) counters.playhead = duration - std::abs(std::fmod(elapsed_time.count(), duration));
             else counters.playhead = elapsed_time.count();
@@ -471,7 +474,7 @@ void ofxSATimeline::updateInternals(){
     else counters.frameNum = std::floor(counters.playhead / frame_time); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
 
     // Update ramps
-    timeRamps.updateRamps(counters.playhead, timeSignature);
+    timeRamps.updateRamps(counters.playhead, timeSignature, duration);
 
     counters.progress = counters.playhead / duration;
 }
@@ -525,6 +528,10 @@ double ofxSATimeline::getProgress() const {
 
 unsigned int ofxSATimeline::getFps() const {
     return fps;
+}
+
+void ofxSATimeline::setFps(unsigned int _fps) {
+    fps = _fps;
 }
 
 //    double getCurrentBeat() const {
@@ -721,6 +728,8 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGuiEx::RampGraph("Bar progress: %.2f", barProgressHist, timeRamps.barProgress, !paused);
         static float barPulseHist[ofxSATL_Ramp_Hist_Size] = {0};
         ImGuiEx::RampGraph("Bar pulse: %.2f", barPulseHist, timeRamps.barPulse, !paused);
+        static float barStepHist[ofxSATL_Ramp_Hist_Size] = {0};
+        ImGuiEx::RampGraph("Bar Step: %.2f", barStepHist, timeRamps.barStep, !paused);
 
         ImGui::Separator();
 
@@ -758,9 +767,10 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         //ImGui::Dummy({100,20});
         ImGui::BeginGroup();
         ImGui::Text("Bar");
-        ImGui::VSliderFloat("##barprogress", ImVec2(20, 50), &timeRamps.barProgress, 0.0f, 1.0f, "");
-        //ImGui::VSliderFloat("##barstep", ImVec2(20, 50), &timeRamps.barS, 0.0f, 1.0f, "");
-        ImGui::Text("%03lu", counters.barCount%100);
+        ImGui::VSliderFloat("##barprogress", ImVec2(14, 50), &timeRamps.barProgress, 0.0f, 1.0f, "");
+        ImGui::SameLine();
+        ImGui::VSliderFloat("##barstep", ImVec2(6, 50), &timeRamps.barStep, 0.0f, 1.0f, "");
+        ImGui::Text("%04lu", counters.barCount%10000);
         ImGui::EndGroup();
         ImGui::SameLine();
         ImGui::BeginGroup();
@@ -768,7 +778,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::VSliderFloat("##beatprogress", ImVec2(14, 50), &timeRamps.beatProgress, 0.0f, 1.0f, "");
         ImGui::SameLine();
         ImGui::VSliderFloat("##beatstep", ImVec2(6, 50), &timeRamps.beatStep, 0.0f, 1.0f, "");
-        ImGui::Text("%04lu", counters.beatCount%100);
+        ImGui::Text("%04lu", counters.beatCount%10000);
         ImGui::EndGroup();
         ImGui::SameLine();
         ImGui::BeginGroup();
@@ -776,7 +786,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::VSliderFloat("##noteprogress", ImVec2(14, 50), &timeRamps.noteProgress, 0.0f, 1.0f, "");
         ImGui::SameLine();
         ImGui::VSliderFloat("##notestep", ImVec2(6, 50), &timeRamps.noteStep, 0.0f, 1.0f, "");
-        ImGui::Text("%04lu", counters.noteCount%100);
+        ImGui::Text("%04lu", counters.noteCount%10000);
         ImGui::EndGroup();
 
         ImGui::EndDisabled();
@@ -901,13 +911,14 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::SameLine();
 
         // Pause / Resume
-        if(!paused){
+        if(playing && !paused){
             if(ImGui::Button("Pause ")){
                 pause();
             }
         }
         else if(ImGui::Button("Resume")){
-            resume();
+            if(!playing) start();
+            else resume();
         }
         ImGui::SameLine();
 
@@ -1019,7 +1030,7 @@ void ofxSATimeline::reset() {
     start_time = std::chrono::high_resolution_clock::now();
     paused_time = std::chrono::duration<double>(0);
 
-    timeRamps.updateRamps(counters.playhead, timeSignature);
+    timeRamps.updateRamps(counters.playhead, timeSignature, duration);
 }
 
 // Load + Save

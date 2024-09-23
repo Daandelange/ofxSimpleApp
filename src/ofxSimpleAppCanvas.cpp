@@ -8,8 +8,6 @@ ContentResizeArgs::ContentResizeArgs(unsigned int _width, unsigned int _height, 
 
 }
 
-
-
 ofxSimpleAppCanvas::ofxSimpleAppCanvas(unsigned int _width, unsigned int _height){
     setViewportRect();
     setCanvasSize(_width, _height);
