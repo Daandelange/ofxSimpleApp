@@ -12,3 +12,9 @@
 #define ofxSA_GUI_THEME_LIGHT 1
 #define ofxSA_GUI_THEME_CUSTOM 2
 
+// - - - - -
+// Helpers
+#define ofxSA_XSTR(x) #x
+#define ofxSA_STRINGIFY(x) ofxSA_XSTR(x)
+#define ofxSA_APPENDONE_I(x) x##1
+#define ofxSA_APPENDONE(x) ofxSA_APPENDONE_I(x)

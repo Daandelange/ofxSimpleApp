@@ -60,12 +60,12 @@ ofxSimpleApp::~ofxSimpleApp(){
 
 //--------------------------------------------------------------
 void ofxSimpleApp::setup(){
+
 	// Now we have a GL context, give some GL info
 #if defined( ofxSA_DEBUG )
 	char *version = NULL;
 	char *vendor = NULL;
 	char *renderer = NULL;
-	//ofGetGLRenderer()->
 	version =  (char*)glGetString(GL_VERSION);
 	vendor =   (char*)glGetString(GL_VENDOR);
 	renderer = (char*)glGetString(GL_RENDERER);
@@ -91,13 +91,18 @@ void ofxSimpleApp::setup(){
 										//1.0 gets you no averaging at all
 										//use lower values to get steadier readings
 	TIME_SAMPLE_DISABLE_AVERAGE();	//disable averaging
-
 	TIME_SAMPLE_SET_REMOVE_EXPIRED_THREADS(true); //inactive threads will be dropped from the table
+#if defined(ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY) && ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY != 0
+    TIME_SAMPLE_GET_INSTANCE()->setGlobalEnableDisableKey(ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY);
+#endif
+
 	//customize color
 	//TIME_SAMPLE_GET_INSTANCE()->setHighlightColor(ofColor::yellow);
 
 	//TIME_SAMPLE_GET_INSTANCE()->drawUiWithFontStash("fonts/UbuntuMono-R.ttf");
 	//TIME_SAMPLE_GET_INSTANCE()->drawUiWithFontStash2("fonts/UbuntuMono-R.ttf");
+    TIME_SAMPLE_GET_INSTANCE()->setEnabled(ofxSA_TIME_MEASUREMENTS_AUTO_ENABLED);
+
 #endif
 
 	// Window Title
@@ -241,13 +246,15 @@ void ofxSimpleApp::draw(){
     canvas.fbo.end();
 #endif
 
+
     // Draw canvas texture to viewport
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.draw();
 #endif
 
+    // Export the image before the GUI
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
-    TS_START("Export Output");
+    TS_START("Outputs and recording");
 #endif
 #ifdef ofxSA_SYPHON_OUTPUT
     publishSyphonTexture();
@@ -260,6 +267,7 @@ void ofxSimpleApp::draw(){
     TS_STOP("Export Output");
 #endif
 
+    // Gui Rendering
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_START("Render Gui");
 #endif
@@ -369,8 +377,13 @@ bool ofxSimpleApp::startRecordingCanvas(){
 #   endif
 
     // Sync timeline
+#ifdef ofxSA_TIMELINE_ENABLE
 	ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
 	tl.startNextFrame(glm::max(0,recordFrameRange[0]));
+#   else
+    recordStartSeconds = ofGetElapsedTimef();
+    recordStartFrame = ofGetFrameNum()+1; // +1 because recording starts next frame. Important.
+#endif
 
     // Set new target file
     curRecordingName = ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER;
@@ -388,19 +401,31 @@ bool ofxSimpleApp::startRecordingCanvas(){
 #   else
         auto ffmpegFormat = glFormatToFFmpeg(GL_BGRA);
 #   endif
+
         if(ffmpegFormat.length()<1)
             ofLogWarning("ofxSimpleApp::startRecordingCanvas()") << "The canvas has an unsupported pixel format, you have to map your GL_format to the ffmpeg pixel format !";
         m_Recorder.setInputPixelFormat(ffmpegFormat);
 
+        // Timings
+#ifdef ofxSA_TIMELINE_ENABLE
         const unsigned int fromRec = recordFrameRange[0]>0 ? recordFrameRange[0] : 0;
         const unsigned int toRec = recordFrameRange[1]>0 ? recordFrameRange[1] : tl.getTotalFrames();
         float duration = float(toRec-fromRec)*(1.f/tl.getFps());
         //tl.goToFrame(fromRec, false, false);
 
+        m_Recorder.setCaptureDuration(duration);
+        m_Recorder.setFps(tl.getFps());
+#else
+        // 0 = infinite too :)
+        m_Recorder.setCaptureDuration(recordLengthSeconds);
+        m_Recorder.setFps(ofGetTargetFrameRate());
+#endif
+
+        // Audio
         m_Recorder.setBitRate(12000); // Dodo: parameterize this
         m_Recorder.setRecordAudio(bRecordAudioToo); // todo: make optional
-        m_Recorder.setCaptureDuration(duration);//tl.getDuration());
-        m_Recorder.setFps(tl.getFps());
+
+        // Dimensions
 #   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
         m_Recorder.setWidth(canvas.getCanvasWidth());
         m_Recorder.setHeight(canvas.getCanvasHeight());
@@ -411,10 +436,12 @@ bool ofxSimpleApp::startRecordingCanvas(){
 
         ofLogNotice("ofxSimpleApp::startRecordingCanvas()")
                 << "Start recording FFMPEG to destination = " << curRecordingName
+#ifdef ofxSA_TIMELINE_ENABLE
                 << "From=" << fromRec*(1.f/tl.getFps()) << "s, To="<< toRec*(1.f/tl.getFps()) << "s, Duration="<< duration << "s."
+#else
+                << "From=" << ofGetFrameNum() << "f = " << ofGetElapsedTimef() << "s, Duration="<< recordLengthSeconds << "s."
+#endif
                 << std::endl;
-
-
 
         isRecordingCanvas = m_Recorder.startCustomRecord();
     }
@@ -435,7 +462,6 @@ bool ofxSimpleApp::stopRecordingCanvas(){
     }
     else if(texRecorderMode == TexRecorderMode_PNG){
         // Nothing to stop
-
     }
     isRecordingCanvas = false;
 
@@ -494,9 +520,9 @@ void ofxSimpleApp::recordCanvasPixels(const ofPixels& _pixels){
         // Check autoStop (is this the right place to do this??)
         const bool autoStop = (recordFrameRange[1] > 0 && tl.getFrameNum() > recordFrameRange[1]+1);
 #else
-        unsigned int curFrame = ofGetFrameNum();
+        unsigned int curFrame = ofGetFrameNum()-recordStartFrame;
         bool realTimeRecording = true;
-        const bool autoStop = false;
+        const bool autoStop = (recordStartSeconds >= 0) && recordLengthSeconds>0 && (ofGetElapsedTimef() > recordStartSeconds+recordLengthSeconds);
 #endif
 
 		// Route the pixels to the selected recorder...
@@ -527,7 +553,12 @@ void ofxSimpleApp::recordCanvasPixels(const ofPixels& _pixels){
 		}
 
 		if(autoStop){
-			ofLogNotice("ofxSimpleApp::recordCanvasFrame()") << "Auto-stopping current recording on frame #" << recordFrameRange[1];
+			ofLogNotice("ofxSimpleApp::recordCanvasFrame()") << "Auto-stopping current recording on "
+#ifdef ofxSA_TIMELINE_ENABLE
+				<< "frame=" << tl.getFrameNum();//recordFrameRange[1];
+#else
+				<< "elapsedSeconds=" << (ofGetElapsedTimef() - recordStartSeconds) << " (target=" << recordLengthSeconds << ")";
+#endif
 			stopRecordingCanvas();
 			return;
 		}
@@ -1109,125 +1140,161 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 #ifdef ofxSA_HAS_MODULES_MENU
         if(ImGui::BeginMenu("Modules")){
 #ifdef ofxSA_SYPHON_OUTPUT
-            ImGui::SeparatorText("Syphon");
-            ImGui::Checkbox("Enable syphon output", &bEnableSyphonOutput);
-            ImGui::BeginDisabled(true);
-            ImGui::Text("Server name: %s", syphonServer.getName().c_str());
-            ImGui::EndDisabled();
+            if(ImGui::BeginMenu("Syphon")){
+                ImGui::SeparatorText("Syphon");
+                ImGui::Checkbox("Enable syphon output", &bEnableSyphonOutput);
+                static char syphonServerName[ofxSA_SYPHON_NAME_MAXLEN];//
+                if(ImGui::InputText("Server Name", &syphonServerName[0], ofxSA_SYPHON_NAME_MAXLEN, ImGuiInputTextFlags_EnterReturnsTrue)){
+                     syphonServer.setName(syphonServerName);
+                }
+                if(!ImGui::IsItemActive()){ // Sync title when not editing
+                    std::strncpy(syphonServerName, syphonServer.getName().c_str(), ofxSA_SYPHON_NAME_MAXLEN-1);
+                }
+
+                // todo: show dimensions, fps, etc.
+
+                ImGui::EndMenu();
+            }
 #endif
 
 #ifdef ofxSA_TEXRECORDER_ENABLE
-            ImGui::SeparatorText("Texture Recorder");
+            if(ImGui::BeginMenu("Texture Recorder")){
+                ImGui::CollapsingHeader("Texture Recorder", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_Leaf);
 
-            // Mode
-            if(isRecordingCanvas) ImGui::BeginDisabled();
-            static const char* recModes[] = {
-                "ffmpeg",
-                "PNG"
-            };
-            int curMode = texRecorderMode;
-            if(ImGui::Combo("Recording Mode", &curMode, recModes, IM_ARRAYSIZE(recModes))){
-                texRecorderMode = static_cast<ofxSimpleApp::TexRecorderMode_>(curMode);
-            }
-            if(isRecordingCanvas) ImGui::EndDisabled();
-
-            // PNG options
-            if(texRecorderMode==TexRecorderMode_PNG){ // threaded is only for PNG
-                ImGui::Checkbox("Threaded recording", &bThreadedRecording);
-            }
-            else if(texRecorderMode==TexRecorderMode_FFMPEG){
-                if(ImGui::BeginCombo("Codec", selectedCodec)){
-                    for(auto& c : ffmpegRecordingFormats){
-                        if(ImGui::Selectable(c.first, selectedCodec && (strcmp(selectedCodec, c.first)==0), ImGuiSelectableFlags_AllowOverlap)){
-                            selectedCodec = c.first;
-                            m_Recorder.setVideoCodec(c.first);
-                        }
-                        ImGui::SameLine();
-                        ImGui::TextDisabled("%s", c.second);
-                    }
-                    ImGui::EndCombo();
+                // Destination
+                ImGui::SeparatorText("Destination");
+                static char newFileName[256];
+                if(ImGui::InputText("Target name", newFileName, IM_ARRAYSIZE(newFileName), ImGuiInputTextFlags_EnterReturnsTrue)){
+                    recordingTargetName = newFileName;
+                    std::cout << "NewName=" << recordingTargetName << std::endl;
                 }
-                static unsigned int bitrateMin = 1u, bitrateMax = 100000u;
-                if(ImGui::DragScalar("Video Bitrate", ImGuiDataType_U32, &bitrateVideo, 1.f, &bitrateMin, &bitrateMax, "%u")){
-                    m_Recorder.setBitRate(bitrateVideo);
+                if(!ImGui::IsItemActive()){
+                    std::strncpy(newFileName, recordingTargetName.c_str(), IM_ARRAYSIZE(newFileName)-1);
                 }
 
-                ImGui::BeginDisabled(); // not yet implemented !
-                ImGui::Checkbox("Record Audio", &bRecordAudioToo);
+                // Cur/Next filename
+                if(isRecordingCanvas){
+                    ImGui::TextDisabled("Current : %s", curRecordingName.c_str());
+                }
+                else {
+                    const std::string nextRec = getNextRecordingName();//getNewFileName(ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER, recordingTargetName.c_str(), extension, true, "_");
+                    ImGui::TextDisabled("Next    : %s", nextRec.c_str());
+                }
+
+                // Begin recording
+                ImGui::BeginDisabled();
+                ImGui::Checkbox("Recording state", &isRecordingCanvas);
                 ImGui::EndDisabled();
-
-                // Audio settings
-                if(bRecordAudioToo){
-                    static unsigned int bitrateAudioMax = 320u;
-                    if(ImGui::DragScalar("Audio Bitrate", ImGuiDataType_U32, &bitrateVideo, 1.f, &bitrateMin, &bitrateAudioMax, "%u")){
-                        m_Recorder.setBitRateAudio(bitrateVideo);
+                ImGui::SameLine();
+                if(!isRecordingCanvas){
+                    if(ImGui::Button("Start##startRecordCanvas")){
+                        startRecordingCanvas();
                     }
                 }
-            }
-
-            // Destination
-            char newFileName[100];
-            strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
-            recordingTargetName.copy(newFileName, IM_ARRAYSIZE(newFileName));
-            if(ImGui::InputText("Target name", newFileName, IM_ARRAYSIZE(newFileName))){
-                recordingTargetName = newFileName;
-            }
-
-            // Cur/Next filename
-            if(isRecordingCanvas){
-                ImGui::TextDisabled("Current recording : %s", curRecordingName.c_str());
-            }
-            else {
-                const std::string nextRec = getNextRecordingName();//getNewFileName(ofxSA_TEXRECORDER_DEFAULT_OUTPUT_FOLDER, recordingTargetName.c_str(), extension, true, "_");
-                ImGui::TextDisabled("Next recording    : %s", nextRec.c_str());
-            }
-
-            // Begin recording
-            ImGui::BeginDisabled();
-            ImGui::Checkbox("Recording state", &isRecordingCanvas);
-            ImGui::EndDisabled();
-            ImGui::SameLine();
-            if(!isRecordingCanvas){
-                if(ImGui::Button("Start##startRecordCanvas")){
-                    startRecordingCanvas();
+                else {
+                    if(ImGui::Button("Stop##startRecordCanvas")){
+                        stopRecordingCanvas();
+                    }
                 }
-            }
-            else {
-                if(ImGui::Button("Stop##startRecordCanvas")){
-                    stopRecordingCanvas();
+
+
+                ImGui::SeparatorText("Settings");
+
+                // Time settings
+#ifdef ofxSA_TIMELINE_ENABLE
+                ImGui::Checkbox("Stop on loop", &bRecorderStopOnLoop);
+                const auto& tl = ofxSA_TIMELINE_GET(timeline);
+                ImGui::DragInt2("Frame range to record", &recordFrameRange[0], 1, -1, tl.getTotalFrames());
+                const unsigned int fromRec = recordFrameRange[0]>0 ? recordFrameRange[0] : 0;
+                const unsigned int toRec = recordFrameRange[1]>0 ? recordFrameRange[1] : tl.getTotalFrames();
+                ImGui::TextDisabled("Record Start : %fs", fromRec*(1.f/tl.getFps()));
+                ImGui::TextDisabled("Record End   : %fs", toRec*(1.f/tl.getFps()));
+                ImGui::TextDisabled("Record Length: %fs", (toRec-fromRec)*(1.f/tl.getFps()));
+#else
+                const float frameTime = 1.f/ofGetTargetFrameRate();
+                ImGui::DragFloat("Seconds to record", &recordLengthSeconds, frameTime, 0.f, 60*60*24.f, "%.3f sec");
+                if(recordLengthSeconds<=0){
+                    ImGui::TextDisabled("Duration : Infinite");
                 }
-            }
-            ImGui::Checkbox("Stop on loop", &bRecorderStopOnLoop);
-            const auto& tl = ofxSA_TIMELINE_GET(timeline);
-            ImGui::DragInt2("Frame range to record", &recordFrameRange[0], 1, -1, tl.getTotalFrames());
-            const unsigned int fromRec = recordFrameRange[0]>0 ? recordFrameRange[0] : 0;
-            const unsigned int toRec = recordFrameRange[1]>0 ? recordFrameRange[1] : tl.getTotalFrames();
-            ImGui::TextDisabled("Record Start : %fs", fromRec*(1.f/tl.getFps()));
-            ImGui::TextDisabled("Record End   : %fs", toRec*(1.f/tl.getFps()));
-            ImGui::TextDisabled("Record Length: %fs", (toRec-fromRec)*(1.f/tl.getFps()));
-
-
-            // FFMPeg details
-            if(texRecorderMode==TexRecorderMode_FFMPEG){
-                ImGui::SeparatorText("FFMPEG Recorder");
-                ImGui::Text("FFmpeg   : %s", m_Recorder.getFFmpegPath().c_str());
-                ImGui::Text("BitrateV : %u", m_Recorder.getBitRate());
-                ImGui::Text("BitrateA : %u", m_Recorder.getBitRateAudio());
-                ImGui::Text("FPS      : %.2f", m_Recorder.getFps());
-                ImGui::Text("Width    : %.0f", m_Recorder.getWidth());
-                ImGui::Text("Height   : %.0f", m_Recorder.getHeight());
-                ImGui::Text("Duration : %.2f / %.2f", m_Recorder.getCaptureDuration(), m_Recorder.getRecordedDuration());
-                ImGui::Text("File     : %s", m_Recorder.getOutputPath().c_str());
-                ImGui::Text("Codec    : %s", m_Recorder.getVideoCodec().c_str());
-            }
-            // PNG details
-            else {
-                ImGui::SeparatorText("PNG Recorder");
-                ImGui::TextWrapped("In PNG mode, sequential PNG files will be written to the destination folder.\n One folder per recording.");
-            }
+                else {
+                    ImGui::TextDisabled("Duration : %.2fsec, ±%.0f frames @ %.0f fps", recordLengthSeconds, recordLengthSeconds/frameTime, ofGetTargetFrameRate());
+                }
+                if(isRecordingCanvas && recordStartSeconds>=0 && recordLengthSeconds>0){
+                    ImGui::TextDisabled("Progress: %.0f%%", (ofGetElapsedTimef()-recordStartSeconds)/recordLengthSeconds*100.f);
+                }
 #endif
 
-            ImGui::EndMenu();
+                // Mode
+                if(isRecordingCanvas) ImGui::BeginDisabled();
+                static const char* recModes[] = {
+                    "ffmpeg",
+                    "PNG"
+                };
+                int curMode = texRecorderMode;
+                if(ImGui::Combo("Recording Mode", &curMode, recModes, IM_ARRAYSIZE(recModes))){
+                    texRecorderMode = static_cast<ofxSimpleApp::TexRecorderMode_>(curMode);
+                }
+                if(isRecordingCanvas) ImGui::EndDisabled();
+
+                // PNG options
+                if(texRecorderMode==TexRecorderMode_PNG){
+                    ImGui::PushTextWrapPos(300);// Prevents GUI jump on menu first frame appearing
+                    ImGui::TextWrapped("In PNG mode, sequential PNG files will be written to the destination folder.\n One folder per recording.");
+                    ImGui::PopTextWrapPos();
+
+                    ImGui::SeparatorText("PNG Settings");
+                    ImGui::Checkbox("Threaded recording", &bThreadedRecording); // threaded is only for PNG
+                }
+                else if(texRecorderMode==TexRecorderMode_FFMPEG){
+                    ImGui::SeparatorText("FFMPEG Settings");
+                    if(ImGui::BeginCombo("Codec", selectedCodec)){
+                        for(auto& c : ffmpegRecordingFormats){
+                            if(ImGui::Selectable(c.first, selectedCodec && (strcmp(selectedCodec, c.first)==0), ImGuiSelectableFlags_AllowOverlap)){
+                                selectedCodec = c.first;
+                                m_Recorder.setVideoCodec(c.first);
+                            }
+                            ImGui::SameLine();
+                            ImGui::TextDisabled("%s", c.second);
+                        }
+                        ImGui::EndCombo();
+                    }
+                    static unsigned int bitrateMin = 1u, bitrateMax = 100000u;
+                    if(ImGui::DragScalar("Video Bitrate", ImGuiDataType_U32, &bitrateVideo, 1.f, &bitrateMin, &bitrateMax, "%u")){
+                        m_Recorder.setBitRate(bitrateVideo);
+                    }
+
+                    ImGui::BeginDisabled(); // not yet implemented !
+                    ImGui::Checkbox("Record Audio", &bRecordAudioToo);
+                    ImGui::EndDisabled();
+
+                    // Audio settings
+                    if(bRecordAudioToo){
+                        static unsigned int bitrateAudioMax = 320u;
+                        if(ImGui::DragScalar("Audio Bitrate", ImGuiDataType_U32, &bitrateVideo, 1.f, &bitrateMin, &bitrateAudioMax, "%u")){
+                            m_Recorder.setBitRateAudio(bitrateVideo);
+                        }
+                    }
+                }
+
+                // FFMpeg details
+                if(texRecorderMode==TexRecorderMode_FFMPEG){
+                    ImGui::SeparatorText("FFMPEG Status");
+                    ImGui::Text("FFmpeg   : %s", m_Recorder.getFFmpegPath().c_str());
+                    ImGui::Text("BitrateV : %u", m_Recorder.getBitRate());
+                    ImGui::Text("BitrateA : %u", m_Recorder.getBitRateAudio());
+                    ImGui::Text("FPS      : %.2f", m_Recorder.getFps());
+                    ImGui::Text("Width    : %.0f", m_Recorder.getWidth());
+                    ImGui::Text("Height   : %.0f", m_Recorder.getHeight());
+                    ImGui::Text("Duration : %.2f / %.2f", m_Recorder.getCaptureDuration(), m_Recorder.getRecordedDuration());
+                    ImGui::Text("File     : %s", m_Recorder.getOutputPath().c_str());
+                    ImGui::Text("Codec    : %s", m_Recorder.getVideoCodec().c_str());
+                }
+
+                ImGui::EndMenu(); // texrecorder menu
+            }
+#endif // TEXRECORDER
+
+            ImGui::EndMenu(); // Modules Menu
         }
 #endif // ofxSA_HAS_MODULES_MENU
 
@@ -1252,13 +1319,17 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 }
 
 #ifdef ofxSA_DEBUG
-#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
+#   ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
                 ImGui::SeparatorText("ofxTimeMeasurements");
                 bool tsEnabled = TIME_SAMPLE_GET_ENABLED();
                 if(ImGui::Checkbox("Show TimeMeasurements", &tsEnabled)){
                     TIME_SAMPLE_SET_ENABLED(tsEnabled);
                 }
-#endif
+#       if defined(ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY) && defined(ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME)
+                ImGui::SameLine();
+                ImGui::TextDisabled("%s", ofToString(ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME).c_str());
+#       endif
+#   endif
 
                 ImGui::SeparatorText("ImGui Dev");
                 ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
@@ -1808,6 +1879,12 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
 
     // Load custom section
     pugi::xml_node customAppSettingsNode = doc.child(ofxSA_APP_ID);
+
+    // tmp : fallback for previous file load system, broken since commit e92de44a
+    if(!customAppSettingsNode){
+        ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Trying to fallback on `" << ofxSA_APP_NAME << "` which was used before !";
+        customAppSettingsNode = doc.child(ofxSA_APP_NAME);
+    }
     if(!customAppSettingsNode){
         ret = false;
         ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `" << ofxSA_APP_ID << "` section in the document !";

@@ -201,12 +201,17 @@ protected:
 		static const std::map<const char*, const char*> ffmpegRecordingFormats; // Pair of codec + extension
 		unsigned int bitrateVideo = 12000;
 		unsigned int bitrateAudio = 320;
-		bool bRecorderStopOnLoop = true;
-		int recordFrameRange[2] = {-1, -1};
 
 #	ifdef ofxSA_TIMELINE_ENABLE
+		int recordFrameRange[2] = {-1, -1};
+		bool bRecorderStopOnLoop = true;
+
 		bool onTimelineRestart(std::size_t& _loopCount);
 		bool onTimelineStop();
+#	else
+		float recordStartSeconds = -1.f;
+		int recordStartFrame = -1.f;
+		float recordLengthSeconds = 0.f;
 #	endif
 #endif
 };

@@ -1025,12 +1025,14 @@ void ofxSATimeline::reset() {
     counters.noteCount = 0;
     counters.beatCount = 0;
     counters.barCount = 0;
+    counters.progress = 0;
 
     //loop_complete = false;
     start_time = std::chrono::high_resolution_clock::now();
     paused_time = std::chrono::duration<double>(0);
 
-    timeRamps.updateRamps(counters.playhead, timeSignature, duration);
+    updateInternals();
+    //timeRamps.updateRamps(counters.playhead, timeSignature, duration);
 }
 
 // Load + Save

@@ -12,10 +12,6 @@
 // No special characters are allowed in the file name, including dashes and periods.
 // #define ofxSA_CONFIG_HEADER_FILE ofxSAUserConfig
 #ifdef ofxSA_CONFIG_HEADER_FILE
-#   define ofxSA_XSTR(x) #x
-#   define ofxSA_STRINGIFY(x) ofxSA_XSTR(x)
-#   define ofxSA_APPENDONE_I(x) x##1
-#   define ofxSA_APPENDONE(x) ofxSA_APPENDONE_I(x)
     // String empty ? --> Use default file name filename
 #   if (ofxSA_APPENDONE_I(ofxSA_CONFIG_HEADER_FILE) == 1)
 #       pragma message "ofxSA : Loading & sanitising custom config file !"
@@ -253,15 +249,18 @@
 
 // - - - - -
 // Optional opt-ins
-//#define ofxSA_SYPHON_OUTPUT
 
-// Sanitize Syphon setting (force-disable on unsupported platforms)
+// Sanitize Syphon settings
 #ifdef ofxSA_SYPHON_OUTPUT
     // Only allow on osx platforms
 #   ifndef TARGET_OSX
 #       pragma message "Error: ofxSA_SYPHON_OUTPUT is only allowed on macos, disabling it !"
 //static_assert (true, "Error: ofxSA_SYPHON_OUTPUT is only allowed on macos !");
 #       undef ofxSA_SYPHON_OUTPUT
+#   endif
+//  Default name length
+#   ifndef ofxSA_SYPHON_NAME_MAXLEN
+#       define ofxSA_SYPHON_NAME_MAXLEN 64
 #   endif
 #endif
 
@@ -277,6 +276,7 @@
 
 // Timeline settings
 // tmp enable by default
+//#define ofxSA_TIMELINE_ENABLE
 #ifdef ofxSA_TIMELINE_ENABLE
 //  Enable autostart by default
 #   ifndef ofxSA_TIMELINE_AUTOSTART
@@ -307,7 +307,8 @@
 #ifdef ofxSA_TEXRECORDER_ENABLE
 //  Set default codec
 #   ifndef ofxSA_TEXRECORDER_DEFAULT_CODEC
-#       define ofxSA_TEXRECORDER_DEFAULT_CODEC "libx264"
+//#       define ofxSA_TEXRECORDER_DEFAULT_CODEC "libx264"
+#       define ofxSA_TEXRECORDER_DEFAULT_CODEC "h264"
 #   endif
 #   ifndef ofxSA_TEXRECORDER_DEFAULT_FILENAME
 #       define ofxSA_TEXRECORDER_DEFAULT_FILENAME (ofToString("Recording-")+ofToString(ofGetYear())+"-"+ofToString(ofGetMonth())+"-"+ofToString(ofGetDay()))
@@ -342,7 +343,25 @@
 
 // ofxTimeMeasurements
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
-// todo...
+//  Enable toggle key by default
+#   ifndef ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY
+#       define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY OF_KEY_PAGE_DOWN
+#       define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME "PGDWN"
+#   endif
+//  Set default name to key. Works for chars but not for OF_KEY_XXX !
+#   ifndef ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME
+#       if ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY > 0
+//          When we have a char, use it as text
+#           define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY
+#       else
+//          Otherwise stringify it (also triggered when false !)
+//#           define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME ofxSA_STRINGIFY(ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY)
+#       endif
+#   endif
+//  Auto show on start
+#   ifndef ofxSA_TIME_MEASUREMENTS_AUTO_ENABLED
+#       define ofxSA_TIME_MEASUREMENTS_AUTO_ENABLED false
+#   endif
 #endif
 
 // Todo :
@@ -440,6 +459,7 @@
 //#define ofxSA_XML_FOLDER "save_files/"
 
 //#define ofxSA_SYPHON_OUTPUT
+//#define ofxSA_SYPHON_NAME_MAXLEN 64
 
 //#define ofxSA_CANVAS_OUTPUT_ENABLE
 //#define ofxSA_CANVAS_OUTPUT_DEFAULT_WIDTH 1920
@@ -458,4 +478,6 @@
 //#define DEFAULT_TEXTURE_RECORDER_CONTAINER_EXT ".mkv"
 
 //#define ofxSA_TIME_MEASUREMENTS_ENABLE
-
+//#define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY OF_KEY_PAGE_DOWN // false to disable
+//#define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME 'PGDWN'
+//#define ofxSA_TIME_MEASUREMENTS_AUTO_ENABLED false
