@@ -72,9 +72,9 @@ float smoothstep(TYPE edge0, TYPE edge1, TYPE x){
     return y * y * ( y * (3 - 2));
 }
 
-// From imgui_demo.cpp
+// ImGui namespace extensions
 namespace ImGuiEx {
-    // Help marker
+    // Help marker - From imgui_demo.cpp
     bool BeginHelpMarker(const char* marker = "[?]"){
         ImGui::SameLine();
         ImGui::TextDisabled("%s", marker);
@@ -378,5 +378,6 @@ namespace ImGuiEx {
 //        ofxImGui::LoggerChannel& lc = *logChannel;
 //        DrawLoggerChannel(title, lc, p_open);
 //    }
-}
+
+} // namespace ImGuiEx
 

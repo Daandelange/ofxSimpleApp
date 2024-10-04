@@ -264,6 +264,10 @@
 #   endif
 #endif
 
+// NDI
+#ifdef ofxSA_NDI_SENDER_ENABLE
+#endif
+
 // Sanitize Canvas setting (force-disable on unsupported platforms)
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 #   ifndef ofxSA_CANVAS_OUTPUT_DEFAULT_WIDTH
@@ -336,7 +340,7 @@
 // Define if there are any modules with a menu
 #ifndef ofxSA_HAS_MODULES_MENU
 // Do current modules have a menu ? (or force it)
-#   if defined(ofxSA_FORCE_MODULES_MENU) || defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE)
+#   if defined(ofxSA_FORCE_MODULES_MENU) || defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE) || defined(ofxSA_NDI_SENDER_ENABLE)
 #       define ofxSA_HAS_MODULES_MENU
 #   endif
 #endif

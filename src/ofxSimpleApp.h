@@ -29,6 +29,14 @@
 #include "ofxFastFboReader.h"
 #endif
 
+#ifdef ofxSA_NDI_SENDER_ENABLE
+#include "ofxNDI.h"
+#endif
+
+#if defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE)
+#include "ofFpsCounter.h"
+#endif
+
 #ifdef TARGET_OSX
 // Requires to install https://developer.nvidia.com/cuda-toolkit-archive
 // Osx 10.12 : use Cuda toolkit 9.2.1
@@ -152,6 +160,7 @@ protected:
 #ifdef ofxSA_SYPHON_OUTPUT
 		ofxSyphonServer syphonServer;
 		bool bEnableSyphonOutput = false;
+		ofFpsCounter syphonFps;
 		virtual void publishSyphonTexture();
 #endif
 
@@ -201,6 +210,7 @@ protected:
 		static const std::map<const char*, const char*> ffmpegRecordingFormats; // Pair of codec + extension
 		unsigned int bitrateVideo = 12000;
 		unsigned int bitrateAudio = 320;
+		ofFpsCounter recorderFps;
 
 #	ifdef ofxSA_TIMELINE_ENABLE
 		int recordFrameRange[2] = {-1, -1};
@@ -213,5 +223,11 @@ protected:
 		int recordStartFrame = -1.f;
 		float recordLengthSeconds = 0.f;
 #	endif
+#endif
+
+#ifdef ofxSA_NDI_SENDER_ENABLE
+		ofxNDIsender ndiSender;
+		bool startNdi();
+		void stopNdi();
 #endif
 };

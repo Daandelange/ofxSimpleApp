@@ -16,6 +16,9 @@
 #include "ofxTimeMeasurements.h"
 #endif
 
+#ifdef ofxSA_NDI_SENDER_ENABLE
+#include "ofxNDIImGuiEx.h"
+#endif
 
 #include "ofxSimpleAppUtils.h"
 //#include "ofGraphics.h" // for GL info stuff ?
@@ -179,6 +182,20 @@ void ofxSimpleApp::setup(){
     //fastFboReader.setAsync(false);
 #endif
 
+    // NDI
+#ifdef ofxSA_NDI_SENDER_ENABLE
+    ndiSender.SetReadback(false);
+    ndiSender.SetAsync(false);
+
+#   ifdef ofxSA_TIMELINE_ENABLE
+    ndiSender.SetFrameRate(ofxSA_TIMELINE_GET(timeline).getFps());
+#   else
+    ndiSender.SetFrameRate(ofGetTargetFrameRate());
+#   endif
+
+    startNdi();
+#endif
+
 	// Restore settings on launch
 	loadXmlSettings();
 
@@ -199,6 +216,10 @@ void ofxSimpleApp::exit(){
 #       endif
 #   endif
 #endif
+
+#ifdef ofxSA_NDI_SENDER_ENABLE
+    ndiSender.ReleaseSender();
+#endif
 }
 
 //--------------------------------------------------------------
@@ -216,6 +237,15 @@ void ofxSimpleApp::update(){
 #ifdef ofxSA_TIMELINE_ENABLE
     ofxSA_TIMELINE_GET(timeline).tickUpdate();
 #endif
+
+    // FPS trackers
+#ifdef ofxSA_TEXRECORDER_ENABLE
+    recorderFps.update();
+#endif
+
+#ifdef ofxSA_SYPHON_OUTPUT
+    syphonFps.update();
+#endif
 }
 
 //--------------------------------------------------------------
@@ -227,6 +257,7 @@ void ofxSimpleApp::draw(){
     TSGL_START("ofxSimpleApp::draw()");
 #endif
 
+    // Timeline ticking
 #ifdef ofxSA_TIMELINE_ENABLE
     ofxSA_TIMELINE_GET(timeline).tickFrame();
 #endif
@@ -246,7 +277,6 @@ void ofxSimpleApp::draw(){
     canvas.fbo.end();
 #endif
 
-
     // Draw canvas texture to viewport
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.draw();
@@ -256,15 +286,27 @@ void ofxSimpleApp::draw(){
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_START("Outputs and recording");
 #endif
+    // Syphon
 #ifdef ofxSA_SYPHON_OUTPUT
     publishSyphonTexture();
 #endif
-
+    // TexRecorder
 #ifdef ofxSA_TEXRECORDER_ENABLE
     recordCanvasFrame();
 #endif
+    // NDI
+#ifdef ofxSA_NDI_SENDER_ENABLE
+    ndiSender.SendImage(canvas.fbo);
+#else
+    ofImage pix;
+    auto w = ofGetWindowWidth();
+    auto h = ofGetWindowHeight();
+    pix.setUseTexture(true);
+    pix.grabScreen(0, 0, w, h);
+    ndiSender.SendImage(pix);
+#endif
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
-    TS_STOP("Export Output");
+    TS_STOP("Outputs and recording");
 #endif
 
     // Gui Rendering
@@ -275,7 +317,6 @@ void ofxSimpleApp::draw(){
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_STOP("Render Gui");
 #endif
-
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TSGL_STOP("ofxSimpleApp::draw()");
 #endif
@@ -297,6 +338,7 @@ void ofxSimpleApp::publishSyphonTexture(){
         // You can override this to publish a custom texture.
         syphonServer.publishScreen();
 #endif
+        syphonFps.newFrame();
     }
 }
 #endif
@@ -454,6 +496,8 @@ bool ofxSimpleApp::startRecordingCanvas(){
         ofLogNotice("ofxSimpleApp::startRecordingCanvas()") << "Start recording PNG to destination = " << dir.path() << std::endl;
 
             isRecordingCanvas = true;
+    }
+
     return isRecordingCanvas;
 }
 bool ofxSimpleApp::stopRecordingCanvas(){
@@ -1139,9 +1183,9 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
         // Any Modules Enabled ?
 #ifdef ofxSA_HAS_MODULES_MENU
         if(ImGui::BeginMenu("Modules")){
-#ifdef ofxSA_SYPHON_OUTPUT
+#   ifdef ofxSA_SYPHON_OUTPUT
             if(ImGui::BeginMenu("Syphon")){
-                ImGui::SeparatorText("Syphon");
+                ImGui::SeparatorText("Server");
                 ImGui::Checkbox("Enable syphon output", &bEnableSyphonOutput);
                 static char syphonServerName[ofxSA_SYPHON_NAME_MAXLEN];//
                 if(ImGui::InputText("Server Name", &syphonServerName[0], ofxSA_SYPHON_NAME_MAXLEN, ImGuiInputTextFlags_EnterReturnsTrue)){
@@ -1152,14 +1196,27 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 }
 
                 // todo: show dimensions, fps, etc.
+                ImGui::SeparatorText("Status");
+#       ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+                ofTexture& tex = canvas.fbo.getTexture();
+                if(tex.isAllocated())
+                    ImGui::TextDisabled("Resolution: %.0f x %.0f", tex.getWidth(), tex.getHeight());
+                else
+                    ImGui::TextDisabled("Resolution: [unknown]");
+#       else
+                ImGui::TextDisabled("Resolution: %u x %u", ofGetWidth(), ofGetHeight());
+#       endif
+#       ifdef ENABLEME_WHEN_OFXSYPHON_UPSTREAM_UPDATED
+                ImGui::TextDisabled("hasClients: %s", syphonServer.hasClients()?"Yes":"No");
+#       endif
 
                 ImGui::EndMenu();
             }
-#endif
+#   endif
 
-#ifdef ofxSA_TEXRECORDER_ENABLE
+#   ifdef ofxSA_TEXRECORDER_ENABLE
             if(ImGui::BeginMenu("Texture Recorder")){
-                ImGui::CollapsingHeader("Texture Recorder", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_Leaf);
+                //ImGui::CollapsingHeader("Texture Recorder", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_Leaf);
 
                 // Destination
                 ImGui::SeparatorText("Destination");
@@ -1201,7 +1258,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 ImGui::SeparatorText("Settings");
 
                 // Time settings
-#ifdef ofxSA_TIMELINE_ENABLE
+#   ifdef ofxSA_TIMELINE_ENABLE
                 ImGui::Checkbox("Stop on loop", &bRecorderStopOnLoop);
                 const auto& tl = ofxSA_TIMELINE_GET(timeline);
                 ImGui::DragInt2("Frame range to record", &recordFrameRange[0], 1, -1, tl.getTotalFrames());
@@ -1210,7 +1267,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 ImGui::TextDisabled("Record Start : %fs", fromRec*(1.f/tl.getFps()));
                 ImGui::TextDisabled("Record End   : %fs", toRec*(1.f/tl.getFps()));
                 ImGui::TextDisabled("Record Length: %fs", (toRec-fromRec)*(1.f/tl.getFps()));
-#else
+#   else
                 const float frameTime = 1.f/ofGetTargetFrameRate();
                 ImGui::DragFloat("Seconds to record", &recordLengthSeconds, frameTime, 0.f, 60*60*24.f, "%.3f sec");
                 if(recordLengthSeconds<=0){
@@ -1222,7 +1279,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 if(isRecordingCanvas && recordStartSeconds>=0 && recordLengthSeconds>0){
                     ImGui::TextDisabled("Progress: %.0f%%", (ofGetElapsedTimef()-recordStartSeconds)/recordLengthSeconds*100.f);
                 }
-#endif
+#   endif
 
                 // Mode
                 if(isRecordingCanvas) ImGui::BeginDisabled();
@@ -1292,7 +1349,23 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
                 ImGui::EndMenu(); // texrecorder menu
             }
-#endif // TEXRECORDER
+#   endif // TEXRECORDER
+
+#   ifdef ofxSA_NDI_SENDER_ENABLE
+            if(ImGui::BeginMenu("NDI Sender")){
+                ImGui::SeparatorText("Server");
+                bool bNdiEnabled = ndiSender.SenderCreated();
+                ImGuiEx::ofxNdiSenderSetup(ndiSender);
+
+                ImGui::SeparatorText("Runtime settings");
+                ImGuiEx::ofxNdiSenderSettings(ndiSender);
+
+                ImGui::SeparatorText("NDI Status");
+                ImGuiEx::ofxNdiSenderStatusText(ndiSender);
+
+                ImGui::EndMenu();
+            }
+#   endif
 
             ImGui::EndMenu(); // Modules Menu
         }
@@ -2097,4 +2170,22 @@ bool ofxSimpleApp::onTimelineStop(){
 	return true;
 }
 #	endif
+#endif
+
+#ifdef ofxSA_NDI_SENDER_ENABLE
+bool ofxSimpleApp::startNdi(){
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    const bool ndiCreated = ndiSender.CreateSender(ofxSA_APP_NAME, canvas.getCanvasWidth(), canvas.getCanvasHeight());
+#   else
+    const bool ndiCreated = ndiSender.CreateSender(ofxSA_APP_NAME, ofGetWindowWidth(), ofGetWindowHeight());
+#   endif
+    if(!ndiCreated){
+        ofLogWarning("ofxSimpleApp::Setup()") << "Couldn't create NDI server !";
+    }
+    return ndiCreated;
+}
+
+void ofxSimpleApp::stopNdi(){
+    ndiSender.ReleaseSender();
+}
 #endif
