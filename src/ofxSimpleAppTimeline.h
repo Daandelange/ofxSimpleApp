@@ -304,6 +304,7 @@ private:
     std::chrono::high_resolution_clock::time_point paused_time;
     std::chrono::duration<long long, std::nano> paused_duration;
     long rtAbsLoopCount = 0;
+    bool bIgnoreFirstReverseLoop = true;
 
     //bool loop_complete;
 

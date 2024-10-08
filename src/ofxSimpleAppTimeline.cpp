@@ -470,17 +470,34 @@ void ofxSATimeline::checkLoops(){
         const long curLoopCount = glm::floor(counters.playhead / duration);
         const bool newLoop = rtAbsLoopCount != curLoopCount;
         if(newLoop){
-            counters.loopCount++;
-            bNewLoop = true;
             rtAbsLoopCount = curLoopCount;
-            //std::cout << "newLoop="<< rtAbsLoopCount << " / " << counters.loopCount << " // ph=" << counters.playhead << " / d=" << duration << std::endl;
+
+            // Exception: don't count 1st loop from start if reverse playing
+            if(bIgnoreFirstReverseLoop && playSpeed<0){
+                bNewLoop = false;
+            }
+            else {
+                counters.loopCount++;
+                bNewLoop = true;
+            }
+            // Never ignore again
+            bIgnoreFirstReverseLoop &= false;
         }
     }
+    // rt-rel + offline
     else if ( counters.playhead >= duration || counters.playhead < 0) {
         bNewLoop = true;
 
-        // rt-rel + offline : Loop count is simply incremented
-        counters.loopCount++;
+        // Exception: don't count 1st loop from start if reverse playing
+        if(bIgnoreFirstReverseLoop && playSpeed<0){
+            bNewLoop = false;
+        }
+        else {
+            // Loop count is simply incremented
+            counters.loopCount++;
+        }
+        // Never ignore again
+        bIgnoreFirstReverseLoop &= false;
     }
         // Move playhead
         // Todo: In offline modes (and maybe realtime optional) : Ensure to align the playhead on the frame grid.
@@ -1036,7 +1053,6 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         static double speed = playSpeed;
         ImGui::DragScalar("##playSpeed", ImGuiDataType_Double, &speed, 0.001f, &speedMin, &speedMax, "%6.3f" );
         if(ImGui::IsItemDeactivatedAfterEdit()){
-            std::cout << "Deactivated !" << std::endl;
             setPlaySpeed(speed);
             speed = playSpeed;
         }
@@ -1132,6 +1148,7 @@ void ofxSATimeline::reset() {
     counters.beatCount = 0;
     counters.barCount = 0;
     counters.progress = 0;
+    bIgnoreFirstReverseLoop = true;
 
     //loop_complete = false;
     start_time = std::chrono::high_resolution_clock::now();
