@@ -16,6 +16,12 @@
 
 // - - - - - - - - - -
 
+// Todo: rt-Abs mode changes start_time to move the time cursor manually, it could use paused_time instead not to change the start_time.
+// Todo: Some `counters.frameCount++;` are probably missing at some places
+// Todo: Remove `std::chrono::duration<double>` usage in favour of `std::chrono::duration<long long, std::nano>`
+// Todo: Ability to move+zoom in the timeline view
+// Todo: Support for infinite duration
+
 enum ofxSATimelineMode {
     ofxSATimelineMode_RealTime_Relative,
     ofxSATimelineMode_RealTime_Absolute,
@@ -57,6 +63,8 @@ public:
 
 // Struct with all time counters available
 struct ofxSATimeCounters {
+    friend class ofxSATimeline;
+
     std::size_t frameCount; // Number of rendered frames
     std::size_t frameNum; // Theoretical frame number
     std::size_t loopCount;
@@ -67,6 +75,9 @@ struct ofxSATimeCounters {
     double tDelta; // Elapsed seconds since last frame. Experimental
     double progress;
     const double& elapsedSeconds(){ return playhead; } // Alias
+
+    private:
+    int frameNumSpeed; // Used to track offline frames with the speed parameter
 };
 
 // - - - - - - - - - -
@@ -169,15 +180,14 @@ class ofxSATimeline {
     // Frame-by-frame, relative
     void nextFrame(int _direction = 1);
 
-    void goToFrame(int _frame, bool _relative=false, bool _doPause=true);
-
-    void goToSeconds(double _seconds, bool _relative=false, bool _doPause=true);
+    void goToFrame(int _frame, bool _relative=false);
+    bool goToSeconds(double _seconds, bool _relative=false);
 
     void setLoop(ofxSATimelineLoopMode loopMode);
     void setDuration(double duration);
 
     void setDurationFromBeats(int bars, int noteValue);
-    void setPlaySpeed(double playSpeed);
+    bool setPlaySpeed(double playSpeed);
 
     double getPlaySpeed() const;
 
@@ -195,6 +205,10 @@ private:
 
     // Updates internals and ramps according to playhead
     void updateInternals();
+
+    // Note: Private bcoz last arg is for internal use only !
+    void goToFrame(int _frame, bool _relative, bool _doPause);
+    bool goToSeconds(double _seconds, bool _relative, bool _doPause);
 
 public:
     // todo: make private
@@ -237,7 +251,7 @@ public:
     // Utils / getters
     bool isPlaying() const;
     ofxSATimelineMode getPlayMode() const;
-    void setPlayMode(ofxSATimelineMode _mode);
+    bool setPlayMode(ofxSATimelineMode _mode);
 
     // ImGui Helpers
     void drawImGuiPlayControls(bool horizontalLayout = true);
@@ -258,10 +272,11 @@ public:
     ofEvent<void> onStop;
 private:
     // Composition Settings
-    unsigned int fps; // Desired framerate (realtime), Exact framerate (offline)
+    unsigned int fps; // Desired framerate (realtime) or Exact framerate (offline)
     double duration;
     ofxSATimeSignature timeSignature;
     ofxSATimeRamps timeRamps;
+    bool bAllowLossyOperations = true; // Allows changing speed and playmode while the timer is running
 
     // Playback
     bool playing;
@@ -283,10 +298,12 @@ private:
 //    double playhead; // In seconds
 
     // Internals
+    void resetPausedDuration();
     std::chrono::high_resolution_clock::time_point start_time;
     std::chrono::high_resolution_clock::time_point last_frame_time;
-    std::chrono::duration<double> paused_time;
-    std::chrono::duration<double> pausedTimes;
+    std::chrono::high_resolution_clock::time_point paused_time;
+    std::chrono::duration<long long, std::nano> paused_duration;
+    long rtAbsLoopCount = 0;
 
     //bool loop_complete;
 

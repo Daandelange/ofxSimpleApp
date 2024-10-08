@@ -181,8 +181,10 @@ void ofxSATimeline::startNextFrame(unsigned int _offset){
 void ofxSATimeline::pause() {
     if (!paused) {
         if(!playing) start(); // Ensure play is on
+
         paused = true;
         last_frame_time = std::chrono::high_resolution_clock::now();
+        paused_time = last_frame_time;
         onPause.notify(paused);
     }
 }
@@ -200,6 +202,7 @@ void ofxSATimeline::resume() {
     if (playing && paused) {
         paused = false;
         last_frame_time = std::chrono::high_resolution_clock::now();
+        paused_duration += last_frame_time - paused_time;
         onPause.notify(paused);
     }
 }
@@ -210,7 +213,7 @@ void ofxSATimeline::stop() {
 }
 
 void ofxSATimeline::togglePause() {
-    if(!isPlaying()) start();
+    if(!playing) start();
     else if(paused) resume();
     else pause();
 }
@@ -218,7 +221,7 @@ void ofxSATimeline::togglePause() {
 // Frame-by-frame, relative
 void ofxSATimeline::nextFrame(int _direction){
     // Only when paused or speed = 0
-    if(playing && _direction!=0){
+    if(playing && paused && _direction!=0){
         // Only when paused or speed = 0
         if(playSpeed==0 || paused){
             goToFrame(_direction , true);
@@ -248,6 +251,10 @@ void ofxSATimeline::nextFrame(int _direction){
     }
 }
 
+void ofxSATimeline::goToFrame(int _frame, bool _relative){
+    goToFrame(_frame, _relative, true);
+}
+
 void ofxSATimeline::goToFrame(int _frame, bool _relative, bool _doPause){
     // Enable play, stay paused (allows setting frame)
     if(!playing && _doPause){
@@ -257,50 +264,38 @@ void ofxSATimeline::goToFrame(int _frame, bool _relative, bool _doPause){
     {
         // Sanitize args
         if(_relative){
-            // ignore?
-            //_frame =
+            _frame = _frame + counters.frameNum;
         }
-        else {
-            // Do not exceed duration
-            _frame = _frame % getTotalFrames();
-            // Negative frame indicates distance from end
-            if(_frame<0) _frame = getTotalFrames() + _frame;
-        }
-        //auto current_time = playhead;//std::chrono::duration<double>(playhead - last_frame_time);//playhead;//std::chrono::high_resolution_clock::now();
+        // Do not exceed duration
+        _frame = _frame % (int)getTotalFrames();
+        // Negative frame indicates distance from end
+        if(_frame<0) _frame = getTotalFrames() + _frame;
+
         double frame_time = 1.0 / fps;
 
-        // Update playhead
-        if (playbackMode == ofxSATimelineMode_RealTime_Absolute || playbackMode == ofxSATimelineMode_RealTime_Relative) {
-            if(_relative) counters.playhead += frame_time * _frame;
-            else counters.playhead = frame_time * _frame;
-        }
-        else {
-            if(_relative) counters.playhead = frame_time * ( counters.frameNum + _frame);
-            else counters.playhead = frame_time * _frame;
-        }
+        goToSeconds(frame_time * _frame, false);
+        return;
 
-        // Incremment rendered frames
-        counters.frameCount++;
 
-        // Remember (for rt modes)
-        last_frame_time = start_time + std::chrono::seconds((long long)counters.playhead);
 
-        checkLoops();
 
-        updateInternals();
 
-        onSeek.notify(counters);
     }
 }
 
-void ofxSATimeline::goToSeconds(double _seconds, bool _relative, bool _doPause){
-    // Enable play, stay paused (allows setting frame)
+bool ofxSATimeline::goToSeconds(double _seconds, bool _relative){
+    return goToSeconds(_seconds, _relative, true);
+}
+
+bool ofxSATimeline::goToSeconds(double _seconds, bool _relative, bool _doPause){
+    // Ensure play is on
     if(!playing && _doPause){
         pause();
     }
 
     // Set seconds
-    if( _seconds < duration){
+    if( _seconds >= 0 && _seconds <= duration){
+
         if(_relative){
             counters.playhead += _seconds;
         }
@@ -308,22 +303,28 @@ void ofxSATimeline::goToSeconds(double _seconds, bool _relative, bool _doPause){
             counters.playhead = _seconds;
         }
 
+        resetPausedDuration();
+
+        auto current_time = std::chrono::high_resolution_clock::now();
+        start_time = current_time - std::chrono::nanoseconds((long long)(counters.playhead*1000000000.0/playSpeed));
+
+        last_frame_time = current_time;
+
+        // Ensure correct behaviour on resume
+        if(paused) paused_time = current_time;
+
         // Incremment rendered frames
         counters.frameCount++;
 
-        // Remember (for rt modes)
-        if (playbackMode == ofxSATimelineMode_RealTime_Absolute)
-            start_time = std::chrono::high_resolution_clock::now() - std::chrono::seconds((long long)(counters.playhead/playSpeed));
-        else
-            start_time = std::chrono::high_resolution_clock::now() - std::chrono::seconds((long long)counters.playhead);
-        last_frame_time = start_time + std::chrono::seconds((long long)counters.playhead);
 
         checkLoops();
 
         updateInternals();
 
         onSeek.notify(counters);
+        return true;
     }
+    return false;
 }
 
 void ofxSATimeline::setLoop(ofxSATimelineLoopMode loopMode) {
@@ -331,18 +332,35 @@ void ofxSATimeline::setLoop(ofxSATimelineLoopMode loopMode) {
 }
 
 void ofxSATimeline::setDuration(double duration) {
+    if(duration <= 0) return; // zero or infinite durations are not supported yet !
     this->duration = duration;
 }
 
 void ofxSATimeline::setDurationFromBeats(int bars, int noteValue) {
+    if(bars <= 0 && noteValue <= 0) return; // zero or infinite durations are not supported yet !
     ofxSATimeSignature timeSignature(bars, noteValue);
     double beatsInBar = static_cast<double>(timeSignature.beatsPerBar) * timeSignature.notesPerBeat;
     double beatsInMinute = static_cast<double>(timeSignature.bpm) / 60.0;
     setDuration(beatsInBar / beatsInMinute);
 }
 
-void ofxSATimeline::setPlaySpeed(double playSpeed) {
-    this->playSpeed = playSpeed;
+bool ofxSATimeline::setPlaySpeed(double _playSpeed) {
+    if(_playSpeed==0) return false; // Not supported yet ! (Use pause).
+
+    // rtAbs needs to compensate start time if speed changes !
+    if(playing && playbackMode == ofxSATimelineMode_RealTime_Absolute){
+        auto current_time = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<long long, std::nano> curPauseDiff = paused ? (current_time - paused_time) : std::chrono::duration<long long, std::nano>(0);
+        auto timeDiff = current_time - start_time - paused_duration - curPauseDiff;
+        start_time += timeDiff - std::chrono::duration_cast<std::chrono::nanoseconds>(timeDiff * (this->playSpeed/_playSpeed));
+
+        // Alternative
+        //std::chrono::duration<long long, std::nano> originalDiff = std::chrono::duration_cast<std::chrono::nanoseconds>(timeDiff);
+        //std::chrono::duration<long long, std::nano> newDiff = std::chrono::duration_cast<std::chrono::nanoseconds>(timeDiff * (this->playSpeed/_playSpeed));
+        //start_time += originalDiff - newDiff;
+    }
+    this->playSpeed = _playSpeed;
+    return true;
 }
 
 double ofxSATimeline::getPlaySpeed() const {
@@ -372,6 +390,7 @@ void ofxSATimeline::tickFrame(){
 
     // If not playing or paused, do nothing
     if (!playing || paused) {
+        counters.tDelta = 0.0; // Ensure delta is set to 0
         return;
     }
 
@@ -382,7 +401,7 @@ void ofxSATimeline::tickFrame(){
     onFrameTick.notify(counters);
 }
 
-// Updates the playhead and framecount to the most actual onces
+// Updates the playhead and framecount to the most actual ones
 void ofxSATimeline::tickPlayHead(const bool isNewFrame){
     // If not playing or paused, do nothing
     if (!playing || paused) {
@@ -400,65 +419,102 @@ void ofxSATimeline::tickPlayHead(const bool isNewFrame){
 
         //auto elapsed_time = std::chrono::duration<double>(current_time - ((playbackMode == ofxSATimelineMode_RealTime_Absolute)?start_time:last_frame_time)) * playSpeed;
         //playhead = elapsed_time.count();
-
-        // TODO : rel/abs can be combined ! sum pausedTimes + use lastPausedTime.
+        auto elapsedFromLastFrame = std::chrono::duration<double>(current_time - last_frame_time) * playSpeed;
 
         if (playbackMode == ofxSATimelineMode_RealTime_Absolute) {
-            auto elapsed_time = std::chrono::duration<double>(current_time - start_time) * playSpeed;
-            if(isNewFrame) counters.tDelta = elapsed_time.count(); // Tmp, fixme: when no newFrame, time is lost...
-            if(playSpeed<0) counters.playhead = duration - std::abs(std::fmod(elapsed_time.count(), duration));
-            else counters.playhead = elapsed_time.count();
+            auto elapsedFromStart = std::chrono::duration<double>(current_time - paused_duration - start_time) * glm::abs(playSpeed);
+            if(playSpeed<0){ // Reverse playing ?
+                counters.playhead = elapsedFromStart.count() * glm::sign(playSpeed);
+            }
+            else { // Forward playing
+                counters.playhead = elapsedFromStart.count();
+            }
+
             //playhead = glm::abs(glm::mod(playhead, duration));
             //std::cout << "elapsed=" << elapsed_time.count() << " Playhead=" << playhead << std::endl;
             //std::cout << "elapsed=" << glm::fract(1.0) << " Playhead=" << glm::mod(1.0,1.0) << std::endl;
         } else if (playbackMode == ofxSATimelineMode_RealTime_Relative) {
-            auto elapsed_time = std::chrono::duration<double>(current_time - last_frame_time) * playSpeed;
-            counters.playhead += elapsed_time.count();
+            if(isNewFrame){
+                counters.playhead += elapsedFromLastFrame.count();
+            }
+            else {
+                // Todo : this could also be updated in-between frames
+                //counters.playhead = last_frame_time + elapsedFromLastFrame;
+            }
         }
+        if(isNewFrame) counters.tDelta = elapsedFromLastFrame.count() * playSpeed;
     }
     // Update playhead for offline mode
     else /*if (playbackMode == ofxSATimelineMode_Offline)*/ {
         if(isNewFrame){
-            //double frame_time = 1.0 / (double)fps;
-            counters.tDelta = 1.0 / (double)fps;
+            double frame_time = 1.0 / (double)fps;
+            counters.tDelta = frame_time * playSpeed;
+            // Add one frame for the speed timer
+            counters.frameNumSpeed += 1;
             // Add 1 frame's time to the playhead, will compute the framenum from that.
-            counters.playhead = counters.tDelta * (double)(counters.frameNum+(1.0*playSpeed));
+            counters.playhead = frame_time * (playSpeed*counters.frameNumSpeed);
         }
     }
-
     // Remember (for rt modes)
-    last_frame_time = current_time;
+    if(isNewFrame) last_frame_time = current_time;
+    // No new frame : set delta to 0 to things don't move.
+    // Todo: when playSpeed between -1 and 1, frames are added. Use real frame delta.
+    else counters.tDelta = 0.0;
 }
 
 // Updates playhead for looping
 void ofxSATimeline::checkLoops(){
-    // Looping / Stopping
+    bool bNewLoop = false;
     // Check if duration exceeded
-    if ( counters.playhead > duration || counters.playhead < 0) {
-        // Handle looping
+    if (playbackMode == ofxSATimelineMode_RealTime_Absolute) {
+        const long curLoopCount = glm::floor(counters.playhead / duration);
+        const bool newLoop = rtAbsLoopCount != curLoopCount;
+        if(newLoop){
+            counters.loopCount++;
+            bNewLoop = true;
+            rtAbsLoopCount = curLoopCount;
+            //std::cout << "newLoop="<< rtAbsLoopCount << " / " << counters.loopCount << " // ph=" << counters.playhead << " / d=" << duration << std::endl;
+        }
+    }
+    else if ( counters.playhead >= duration || counters.playhead < 0) {
+        bNewLoop = true;
+
+        // rt-rel + offline : Loop count is simply incremented
+        counters.loopCount++;
+    }
+        // Move playhead
+        // Todo: In offline modes (and maybe realtime optional) : Ensure to align the playhead on the frame grid.
+        if(counters.playhead < 0){
+            // Reverse play: loop at end
+            counters.playhead = duration + std::fmod(counters.playhead, duration); // todo : use fmod like below ?
+        }
+        else {
+            // Forward play
+            counters.playhead = std::fmod(counters.playhead, duration); // note: fmod sets the frame to 0 + time_passed_over_the_end
+        }
+
+        // Notify
+        if(bNewLoop){
+            onStart.notify(counters.loopCount);
+        }
+    if(bNewLoop){
+
+        // Handle looping / Stopping
         switch(loopMode){
             case ofxSATimelineLoopMode::NoLoop :
                 stop();
             break;
             case ofxSATimelineLoopMode::LoopOnce :
-                if(counters.loopCount>0) stop();
+                if(counters.loopCount>1) stop();
             break;
             case ofxSATimelineLoopMode::LoopInfinite :
-
+                // keep playing
             break;
         }
-        // Still playing ? Start over !
-        if(playing){
-            counters.loopCount++;
 
-            // Reverse play: loop at end
-            if(counters.playhead < 0){
-                counters.playhead = duration;
-            }
-            else counters.playhead = std::fmod(counters.playhead, duration); // Fixme : Should not be fmod in offline mode
+        // Notify
+        onStart.notify(counters.loopCount);
 
-            onStart.notify(counters.loopCount);
-        }
     }
 }
 
@@ -470,13 +526,13 @@ void ofxSATimeline::updateInternals(){
     counters.beatCount = std::floor(counters.playhead / timeSignature.getBeatDurationSecs());
     counters.noteCount = std::floor(counters.playhead / timeSignature.getNoteDurationSecs());
     counters.barCount  = std::floor(counters.playhead / timeSignature.getBarDurationSecs());
-    if(playbackMode == ofxSATimelineMode_Offline) counters.frameNum = std::floor((counters.playhead) / frame_time + 0.00001); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
-    else counters.frameNum = std::floor(counters.playhead / frame_time); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
+        counters.frameNum = std::floor(counters.playhead / frame_time + 0.00001); // Note: Some weird conversions happens sometimes here, printing not the same numbers below. floor / cast don't work, ceil seems to do fine.
+        counters.frameNumSpeed = std::floor((counters.playhead) / (frame_time*playSpeed) + 0.00001);
 
     // Update ramps
     timeRamps.updateRamps(counters.playhead, timeSignature, duration);
 
-    counters.progress = counters.playhead / duration;
+    counters.progress = counters.playhead / duration; // Fixme: 0 duration !
 }
 
 
@@ -548,8 +604,18 @@ ofxSATimelineMode ofxSATimeline::getPlayMode() const {
     return playbackMode;
 }
 
-void ofxSATimeline::setPlayMode(ofxSATimelineMode _mode) {
+bool ofxSATimeline::setPlayMode(ofxSATimelineMode _mode) {
+    if(!bAllowLossyOperations && !playing) return false;
+
+    // Prevent changing the timeline
+    resetPausedDuration();
+    if(_mode == ofxSATimelineMode_RealTime_Absolute){
+        auto current_time = std::chrono::high_resolution_clock::now();
+        start_time = current_time - std::chrono::nanoseconds((long long)(counters.playhead*1000000000.0/playSpeed));
+        if(paused) paused_time = current_time;
+    }
     playbackMode = _mode;
+    return true;
 }
 
 void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
@@ -650,7 +716,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         static int currentPBMode=-1;
         currentPBMode = playbackMode==ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute?0:(playbackMode==ofxSATimelineMode::ofxSATimelineMode_RealTime_Relative?1:2);
         if(ImGui::Combo("Playback", &currentPBMode, "Real-time (absolute)\0Real-time (relative)\0Offline\0\0")){
-            playbackMode = currentPBMode==0?ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute : (currentPBMode==1?ofxSATimelineMode::ofxSATimelineMode_RealTime_Relative : ofxSATimelineMode::ofxSATimelineMode_Offline);
+            setPlayMode(currentPBMode==0?ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute : (currentPBMode==1?ofxSATimelineMode::ofxSATimelineMode_RealTime_Relative : ofxSATimelineMode::ofxSATimelineMode_Offline));
         }
 
         // Looping
@@ -661,7 +727,10 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         }
 
         // Play speed
-        ImGui::DragScalar("Speed", ImGuiDataType_Double, &playSpeed, 0.005f, &speedMin, &speedMax, "%7.3f");
+        double speed = playSpeed;
+        if(ImGui::DragScalar("Speed", ImGuiDataType_Double, &speed, 0.005f, &speedMin, &speedMax, "%7.3f")){
+            setPlaySpeed(speed);
+        }
 
         if(horizontalLayout) ImGui::PopItemWidth();
         ImGui::EndGroup();
@@ -709,6 +778,17 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         //ImGui::Spacing();
         //if(horizontalLayout) ImGui::PopItemWidth();
         ImGui::EndGroup();
+
+        // More options
+        if(horizontalLayout) ImGui::SameLine();
+        ImGui::BeginGroup();
+        ImGui::SeparatorText("Advanced");
+
+        ImGui::Checkbox("Allow Lossy Operations", &bAllowLossyOperations);
+        ImGuiEx::ShowHelpMarker("Allows changing playMode and playSpeed while playing. Off is more robust.");
+
+        ImGui::EndGroup();
+
 
         //if(horizontalLayout) ImGui::SameLine();
     } // End settings
@@ -822,9 +902,16 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         if(ImGui::IsItemClicked()){
             bShowSecsWithMins = !bShowSecsWithMins;
         }
+        // Show delta time on hover
+        else if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary)){
+            if(ImGui::BeginTooltip()){
+                ImGui::Text("Delta time: %.5f sec", counters.tDelta);
+            }
+            ImGui::EndTooltip();
+        }
         ImGui::Text("%10u f", getFrameNum());
-        ImGui::Text("%4lu.%2lu.%2lu tc", counters.barCount, counters.beatCount%timeSignature.beatsPerBar, counters.noteCount%timeSignature.notesPerBeat);
-        ImGui::Text("%10.6f %%", getProgress());
+        ImGui::Text("%04lu.%02lu.%02lu tc", counters.barCount, counters.beatCount%timeSignature.beatsPerBar, counters.noteCount%timeSignature.notesPerBeat);
+        ImGui::Text("%10.6f %%", getProgress()*100);
         //if(counters.loopCount>0) ImGui::Text("Loops   : %10lu", counters.loopCount);
 
         //
@@ -848,7 +935,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         barPos.y+=1;
         ImGui::SetNextItemWidth(barSize.x);
         if(ImGui::SliderScalar("##Playhead",ImGuiDataType_Double, &counters.playhead, &pHeadMin, &duration, "" )){
-            goToSeconds(counters.playhead);
+            goToSeconds(counters.playhead, false, true);
         }
 
         ImDrawList* wdl = ImGui::GetWindowDrawList();
@@ -941,14 +1028,24 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         if(horizontalLayout) ImGui::SameLine();
 
         // Speed
+        const bool disableLossy = !bAllowLossyOperations && (playing || paused);
+        if(disableLossy) ImGui::BeginDisabled();
         ImGui::Text(" ");
         ImGui::SameLine();
         ImGui::SetNextItemWidth(50);
-        ImGui::DragScalar("##playSpeed", ImGuiDataType_Double, &playSpeed, 0.001f, &speedMin, &speedMax, "%6.3f" );
-        if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_ForTooltip) && !ImGui::IsItemActive() && ImGui::BeginItemTooltip()){
+        static double speed = playSpeed;
+        ImGui::DragScalar("##playSpeed", ImGuiDataType_Double, &speed, 0.001f, &speedMin, &speedMax, "%6.3f" );
+        if(ImGui::IsItemDeactivatedAfterEdit()){
+            std::cout << "Deactivated !" << std::endl;
+            setPlaySpeed(speed);
+            speed = playSpeed;
+        }
+        else if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_ForTooltip) && !ImGui::IsItemActive() && ImGui::BeginItemTooltip()){
             ImGui::Text("Play Speed: %.001f", playSpeed);
             ImGui::EndTooltip();
         }
+        if(disableLossy) ImGui::EndDisabled();
+
 
         ImGui::SameLine();
 
@@ -980,25 +1077,33 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
         ImGui::SameLine();
 
         // Playback Mode toggle
+        if(disableLossy) ImGui::BeginDisabled();
         if(playbackMode==ofxSATimelineMode::ofxSATimelineMode_Offline){
             if(ImGui::Button("offline##bpmo")){
-                playbackMode=ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute;
+                setPlayMode(ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute);
             }
+            else if(ImGui::IsItemClicked(ImGuiMouseButton_Right))
+                setPlayMode(ofxSATimelineMode::ofxSATimelineMode_RealTime_Relative);
         }
         else if(playbackMode==ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute){
             if(ImGui::Button("r-t Abs##pbmra")){
-                playbackMode=ofxSATimelineMode::ofxSATimelineMode_RealTime_Relative;
+                setPlayMode(ofxSATimelineMode::ofxSATimelineMode_RealTime_Relative);
             }
+            else if(ImGui::IsItemClicked(ImGuiMouseButton_Right))
+                setPlayMode(ofxSATimelineMode::ofxSATimelineMode_Offline);
         }
         else{
             if(ImGui::Button("r-t Rel##pbmrr")){
-                playbackMode=ofxSATimelineMode::ofxSATimelineMode_Offline;
+                setPlayMode(ofxSATimelineMode::ofxSATimelineMode_Offline);
             }
+            else if(ImGui::IsItemClicked(ImGuiMouseButton_Right))
+                setPlayMode(ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute);
         }
         if(ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_ForTooltip) && !ImGui::IsItemActive() && ImGui::BeginItemTooltip()){
             ImGui::Text("Playback Mode: %s", playbackMode==ofxSATimelineMode::ofxSATimelineMode_Offline?"Offline":(playbackMode==ofxSATimelineMode::ofxSATimelineMode_RealTime_Absolute?"Real Time (absolute)":"Real Time (relative)"));
             ImGui::EndTooltip();
         }
+        if(disableLossy) ImGui::EndDisabled();
 
         ImGui::EndGroup(); // Controls
         ImGui::EndGroup(); // time section
@@ -1021,6 +1126,7 @@ void ofxSATimeline::reset() {
     counters.playhead = 0.0;
     counters.frameCount = 0;
     counters.frameNum = 0;
+    counters.frameNumSpeed = 0; // for frame-based index in offline mode, when speed is smaller then a frame
     counters.loopCount = 0;
     counters.noteCount = 0;
     counters.beatCount = 0;
@@ -1029,7 +1135,10 @@ void ofxSATimeline::reset() {
 
     //loop_complete = false;
     start_time = std::chrono::high_resolution_clock::now();
-    paused_time = std::chrono::duration<double>(0);
+    last_frame_time = start_time;
+    paused_time = start_time;
+    paused_duration = std::chrono::duration<long long, std::nano>(0);
+    rtAbsLoopCount = 0.f;
 
     updateInternals();
     //timeRamps.updateRamps(counters.playhead, timeSignature, duration);
@@ -1051,13 +1160,16 @@ bool ofxSATimeline::populateXmlNode(pugi::xml_node &_node){
     // PlaybackMode
     _node.append_child("play_mode").text().set(playbackMode);
 
+    _node.append_child("play_speed").text().set(playSpeed);
+
     // Timesignature
     pugi::xml_node tsNode = _node.append_child("time_signature");
     tsNode.append_attribute("bpm").set_value(timeSignature.bpm);
     tsNode.append_attribute("beats_per_bar").set_value(timeSignature.beatsPerBar);
     tsNode.append_attribute("notes_per_beat").set_value(timeSignature.notesPerBeat);
 
-    // Todo: PlaySpeed ?
+    // Advanced
+    _node.append_child("allow_lossy_operations").text().set(bAllowLossyOperations);
 
     return true;
 }
@@ -1067,38 +1179,66 @@ bool ofxSATimeline::retrieveXmlNode(pugi::xml_node &_node){
 
     // FPS
     if(pugi::xml_node fpsNode = _node.child("fps")){
-        fps = fpsNode.text().as_uint();
+        setFps(fpsNode.text().as_uint(fps));
     }
     else ret = false;
 
     // Duration
     if(pugi::xml_node dNode = _node.child("duration")){
-        duration = dNode.text().as_double();
+        setDuration(dNode.text().as_double(duration));
     }
     else ret = false;
 
     // LoopMode
     if(pugi::xml_node lNode = _node.child("loop_mode")){
-        loopMode = static_cast<ofxSATimelineLoopMode>(lNode.text().as_int());
+        setLoop(static_cast<ofxSATimelineLoopMode>(lNode.text().as_int(loopMode)));
     }
     else ret = false;
 
     // PlaybackMode
     if(pugi::xml_node fpsNode = _node.child("play_mode")){
-        playbackMode = static_cast<ofxSATimelineMode>(fpsNode.text().as_uint());
+        setPlayMode(static_cast<ofxSATimelineMode>(fpsNode.text().as_uint(playbackMode)));
     }
     else ret = false;
 
+    if(pugi::xml_node sNode = _node.child("play_speed")){
+        setPlaySpeed(sNode.text().as_double(playSpeed));
+    }
+    else ret = false;
+
+    // Todo: Playhead position ?
+
     // Timesignature
     if(pugi::xml_node tsNode = _node.child("time_signature")){
-        timeSignature.bpm = tsNode.attribute("bpm").as_uint();
-        timeSignature.beatsPerBar = tsNode.attribute("beats_per_bar").as_uint();
-        timeSignature.notesPerBeat = tsNode.attribute("notes_per_beat").as_uint();
+        timeSignature.set(
+            tsNode.attribute("beats_per_bar").as_uint(timeSignature.beatsPerBar),
+            tsNode.attribute("notes_per_beat").as_uint(timeSignature.notesPerBeat),
+            tsNode.attribute("bpm").as_uint(timeSignature.bpm)
+        );
+    }
+    else ret = false;
+
+    // Advanced
+    if(pugi::xml_node aloNode = _node.child("allow_lossy_operations")){
+        bAllowLossyOperations = aloNode.text().as_bool(bAllowLossyOperations);
     }
     else ret = false;
 
     reset();
 
     return ret;
+}
+
+// Resets/Cancels-out the paused_duration without moving the playhead
+void ofxSATimeline::resetPausedDuration(){
+    if(paused_duration.count()==0) return; // nothing to reset
+
+    // rtAbs is the only one to use paused_duration
+    const auto pd = (playbackMode == ofxSATimelineMode_RealTime_Absolute) ? paused_duration : std::chrono::duration<long long, std::nano>(0);
+
+    // In rt modes we compensate the paused duration by changing the start time; to prevent the playhead from moving
+    start_time += pd;//std::chrono::high_resolution_clock::now() - pd - std::chrono::nanoseconds((long long)(counters.playhead*1000000000.0));
+    paused_duration = std::chrono::duration<long long, std::nano>(0);
+
 }
 #endif
