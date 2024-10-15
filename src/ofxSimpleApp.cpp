@@ -7,6 +7,7 @@
 // Gui Themes
 #include "Spectrum.h"
 #include "DarkTheme.h"
+#include "DefaultTheme.h"
 #ifdef ofxSA_GUI_THEME_CUSTOM_FILE
 #	include ofxSA_GUI_THEME_CUSTOM_FILE
 #endif
@@ -22,6 +23,10 @@
 
 #include "ofxSimpleAppUtils.h"
 //#include "ofGraphics.h" // for GL info stuff ?
+
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
+#	include "ofxPugiXMLHelpers.h"
+#endif
 
 //------
 // STATICS
@@ -116,14 +121,8 @@ void ofxSimpleApp::setup(){
 	// GUI SETUP
 
 	// Gui Instance
-    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():
-#ifdef ofxSA_GUI_THEME_CUSTOM_FILE
-        (ofxImGui::BaseTheme*)new ofxSA_GUI_THEME_CUSTOM_CLASS()
-#else
-        (ofxImGui::BaseTheme*)new DarkTheme()
-#endif
-        );
-    gui.setup(theme, false, ofxSA_UI_IMGUI_CONFIGFLAGS, ofxSA_UI_RESTORE_STATE);
+    gui.setup(nullptr, false, ofxSA_UI_IMGUI_CONFIGFLAGS, ofxSA_UI_RESTORE_STATE);
+    loadImGuiTheme();
     imguiMenuHeight = ImGui::GetFrameHeight(); // Initial value, will be overwritten when menu is drawn
 
 #ifdef ofxSA_GUI_DEFAULT_HIDDEN
@@ -188,7 +187,7 @@ void ofxSimpleApp::setup(){
     ndiSender.SetAsync(false);
 
 #   ifdef ofxSA_TIMELINE_ENABLE
-    ndiSender.SetFrameRate(ofxSA_TIMELINE_GET(timeline).getFps());
+    ndiSender.SetFrameRate((int)ofxSA_TIMELINE_GET(timeline).getFps());
 #   else
     ndiSender.SetFrameRate(ofGetTargetFrameRate());
 #   endif
@@ -263,13 +262,51 @@ void ofxSimpleApp::draw(){
 #endif
 
     // Call custom user draw function before drawing the texture
-#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-    canvas.fbo.begin();
-#endif
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_START("ofxSimpleApp::drawScene()");
 #endif
+    // Start canvas ?
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    canvas.fbo.begin();
+#endif
+    // BG erasure
+#ifdef ofxSA_BACKGROUND_CLEARING
+    if(bEnableClearing){
+        ofClear(bgClearColor);
+    }
+//#   endif
+#endif
+    // Bg Fading (subtract drawn pixels from current pixels)
+#ifdef ofxSA_BACKGROUND_FADING
+    if(bEnableFading){
+        // Enable blendmode + style
+        ofPushStyle();
+        ofFill();
+#ifdef ofxSA_TIMELINE_ENABLE
+        double tFPS = ofxSA_TIMELINE_GET(timeline).getFps();
+        double delta = ofxSA_TIMELINE_GET(timeline).getCounters().tDelta;
+#else
+        double tFPS = ofGetTargetFrameRate();
+        double delta = 1.0/ofGetFrameRate();
+#endif
+        ofSetColor(bgFadeColor*tFPS*delta);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_ONE_MINUS_SRC_COLOR, GL_ONE);
+        glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
+
+        ofDrawRectangle(getDocumentSize());
+
+        // Restore blendmode + style
+        glDisable(GL_BLEND);
+        glBlendEquation(GL_FUNC_ADD);
+        glBlendFunc(GL_SRC_COLOR, GL_DST_COLOR);
+        ofPopStyle();
+    }
+#endif
+
+    // Call the custom draw function
     drawScene();
+
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_STOP("ofxSimpleApp::drawScene()");
 #endif
@@ -296,14 +333,16 @@ void ofxSimpleApp::draw(){
 #endif
     // NDI
 #ifdef ofxSA_NDI_SENDER_ENABLE
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     ndiSender.SendImage(canvas.fbo);
-#else
+#   else
     ofImage pix;
     auto w = ofGetWindowWidth();
     auto h = ofGetWindowHeight();
     pix.setUseTexture(true);
     pix.grabScreen(0, 0, w, h);
     ndiSender.SendImage(pix);
+#   endif
 #endif
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_STOP("Outputs and recording");
@@ -642,6 +681,7 @@ void ofxSimpleApp::drawGui(){
 #endif
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+        // The canvas HUD
         canvas.drawGuiViewportHUD();
 #endif
 
@@ -797,13 +837,26 @@ void ofxSimpleApp::audioRequested(float * output, int bufferSize, int nChannels)
 
 
 void ofxSimpleApp::loadImGuiTheme(){
-    ofxImGui::BaseTheme* theme = themeID==ofxSA_GUI_THEME_DARK?((ofxImGui::BaseTheme*)new DarkTheme()):(themeID==ofxSA_GUI_THEME_LIGHT?(ofxImGui::BaseTheme*)new Spectrum():
+	ofxImGui::BaseTheme* theme = nullptr;
+	switch(themeID){
+		case ofxSA_GUI_THEME_DARK:
+			theme = (ofxImGui::BaseTheme*) new DarkTheme();
+			break;
+		case ofxSA_GUI_THEME_LIGHT:
+			theme = (ofxImGui::BaseTheme*) new Spectrum();
+			break;
+		case ofxSA_GUI_THEME_IMGUI_DEFAULT:
+			theme = (ofxImGui::BaseTheme*) new ofxImGui::DefaultTheme();
+			break;
 #ifdef ofxSA_GUI_THEME_CUSTOM_FILE
-        (ofxImGui::BaseTheme*)new ofxSA_GUI_THEME_CUSTOM_CLASS()
-#else
-        (ofxImGui::BaseTheme*)new DarkTheme()
+        case ofxSA_GUI_THEME_CUSTOM:
+            theme = (ofxImGui::BaseTheme*) new ofxSA_GUI_THEME_CUSTOM_CLASS();
+            break;
 #endif
-        );
+        default:
+            theme = (ofxImGui::BaseTheme*)new DarkTheme();
+            break;
+    }
     gui.setTheme(theme);
 }
 
@@ -867,6 +920,10 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                     }
                     if(ImGui::Selectable("Dark", themeID==ofxSA_GUI_THEME_DARK) ){
                         themeID = ofxSA_GUI_THEME_DARK;
+                        loadImGuiTheme();
+                    }
+                    if(ImGui::Selectable("ImGui Default", themeID==ofxSA_GUI_THEME_IMGUI_DEFAULT) ){
+                        themeID = ofxSA_GUI_THEME_IMGUI_DEFAULT;
                         loadImGuiTheme();
                     }
 #ifdef ofxSA_GUI_THEME_CUSTOM_FILE
@@ -1026,6 +1083,17 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 }
                 ImGui::EndPopup();
             }
+
+#ifdef ofxSA_BACKGROUND_CLEARING_GUI
+            ImGui::Checkbox("##EnableBGClearing", &bEnableClearing);
+            ImGui::SameLine();
+            ImGui::ColorEdit4("Background clearing", &bgClearColor[0]);
+#endif    
+#ifdef ofxSA_BACKGROUND_FADING_GUI
+            ImGui::Checkbox("##EnableBGFading", &bEnableFading);
+            ImGui::SameLine();
+            ImGui::ColorEdit4("Background fading", &bgFadeColor[0]);
+#endif
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
             canvas.drawGuiSettings();
@@ -1523,6 +1591,19 @@ void ofxSimpleApp::ImGuiDrawAboutWindow(){
                     ImGui::Text("openFrameworks v%d.%d.%d", OF_VERSION_MAJOR, OF_VERSION_MINOR, OF_VERSION_PATCH);
                     ImGui::Separator();
 
+                    ImGui::SeparatorText("ofxSimpleApp Settings");
+#if (ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML)
+                    ImGui::Text("ofxSA XML engine : PugiXML %i.%i.%i (%i)", ofxPugiXml::versionMajor(), ofxPugiXml::versionMinor(), ofxPugiXml::versionPatch(), PUGIXML_VERSION);
+                    ImGui::Separator();
+
+#elif (ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_TINYXML)
+                    ImGui::Text("ofxSA XML engine : TinyXML %i.%i.%i", TIXML_MAJOR_VERSION, TIXML_MINOR_VERSION, TIXML_PATCH_VERSION);
+#else
+                    ImGui::Text("ofxSA XML engine : Unknown");
+#endif
+                    ImGui::Separator();
+
+
                     // Todo: Split Compile info and runtime info
 
                     // Add HW information ?
@@ -1899,6 +1980,15 @@ ofRectangle ofxSimpleApp::getGuiViewport(bool returnScreenCoords) const {
     return curViewport;
 }
 
+// Document size : ofAppWindow or canvas size if using canvas.
+ofRectangle ofxSimpleApp::getDocumentSize() const {
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    return {0, 0, (float)canvas.getCanvasWidth(), (float)canvas.getCanvasHeight()};
+#else
+    return ofGetCurrentViewport();
+#endif
+}
+
 // Xml settings from the ofxXml object
 bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
     if(_fileName.empty()) _fileName = saveName;
@@ -2056,15 +2146,26 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     _node.append_child("show_log_window").text().set(bShowLogs?true:false);
     _node.append_child("log_level").text().set(ofGetLogLevel());
 
+    // Document settings
+    pugi::xml_node docNode = _node.append_child("document");
+#ifdef ofxSA_BACKGROUND_CLEARING
+	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_clearing", bEnableClearing);
+	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_clearing_color", bgClearColor);
+#endif
+#ifdef ofxSA_BACKGROUND_FADING
+	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_fading", bEnableFading);
+	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_fading_color", bgFadeColor);
+#endif
+
     // todo: targetFPS, resolution, fullscreen, etc.
 
     // Canvas
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     pugi::xml_node canvasSettingsNode = _node.append_child("canvas");
-    ret *= canvas.populateXmlNode(canvasSettingsNode);
+    ret *= canvasSettingsNode && canvas.populateXmlNode(canvasSettingsNode);
 #endif
 
-    // Todo: Timeline settings
+    // Timeline settings
 #ifdef ofxSA_TIMELINE_ENABLE
     pugi::xml_node timelineSettingsNode = _node.append_child("timeline");
     ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
@@ -2114,6 +2215,17 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
         ofLogLevel lvl = static_cast<ofLogLevel>(lvlChild.text().as_int((int)OF_LOG_NOTICE));
         ofSetLogLevel(lvl);
     }
+
+        // Document settings
+    pugi::xml_node docNode = _node.append_child("document");
+#ifdef ofxSA_BACKGROUND_CLEARING
+	ofxPugiXml::getNodeValueFromAttribute(docNode, "doc_clearing", bEnableClearing);
+	ofxPugiXml::getNodeValueFromAttribute(docNode, "doc_clearing_color", bgClearColor);
+#endif
+#ifdef ofxSA_BACKGROUND_FADING
+	ofxPugiXml::getNodeValueFromAttribute(docNode, "doc_fading", bEnableFading);
+	ofxPugiXml::getNodeValueFromAttribute(docNode, "doc_fading_color", bgFadeColor);
+#endif
 
     // Canvas
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE

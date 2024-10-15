@@ -142,6 +142,31 @@ void ofxSimpleAppCanvas::draw(){
 
         ofRectangle cvp = getViewportRect();
         ofRectangle ctextureArea = getContentProjection();
+
+        // BG Color
+        ofFill();
+        ofSetColor(vieportBgColor);
+        ofDrawRectangle(cvp);
+
+        // Checkerboard
+        if(bDrawViewportCheckerboard){
+            float diff = (vieportBgColor.getLightness()>0.5) ? -.2 : .2;
+            const ofFloatColor checkerColor = {vieportBgColor.r+diff, vieportBgColor.g+diff, vieportBgColor.b+diff, vieportBgColor.a};
+            ofSetColor(checkerColor);
+            // Every 10 px with zoom
+            const float scale = 10.0;
+            for(float x = 0; x<cvp.width; x+= scale){
+                for(float y = 0; y<cvp.height; y+= scale){
+                    if(glm::mod(glm::round(y/scale+x/scale), 2.f)==0){
+                        // Don't over-flow !
+                        const glm::vec2 size = { glm::min(cvp.width-x, scale), glm::min(cvp.height-y, scale)};
+                        ofDrawRectangle(cvp.x+x, cvp.y+y, size.x, size.y);
+                    }
+                }
+            }
+        }
+
+        // Draw the canvas
         ofFill();
         ofSetColor(ofColor::white);
         fbo.getTexture(0).drawSubsection(cvp.x, cvp.y, cvp.width, cvp.height, ctextureArea.x, ctextureArea.y, ctextureArea.width, ctextureArea.height);
@@ -196,6 +221,8 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
         ImGui::BulletText("Ratio=%.2f", viewportRect.width/viewportRect.height);
         ImGui::Checkbox("Highlight viewport", &bDrawViewportOutline);
         ImGui::Checkbox("Outline content borders", &bDrawContentOutline);
+        ImGui::ColorEdit4("Viewport background", &vieportBgColor[0]);
+        ImGui::Checkbox("Checkerboard as viewport bg", &bDrawViewportCheckerboard);
         ImGui::TreePop();
     }
 }

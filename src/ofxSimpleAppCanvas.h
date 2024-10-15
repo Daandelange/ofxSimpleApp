@@ -79,6 +79,8 @@ class ofxSimpleAppCanvas {
         float scale = 1.f; // Antialiasing control
         bool bFlagDirty = false;
         bool bFlagRepaint = false;
+        ofFloatColor vieportBgColor = ofColor(0,0,0,255);
+        bool bDrawViewportCheckerboard = true;
 
 
         // Viewzone controls

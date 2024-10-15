@@ -11,6 +11,7 @@
 #define ofxSA_GUI_THEME_DARK 0
 #define ofxSA_GUI_THEME_LIGHT 1
 #define ofxSA_GUI_THEME_CUSTOM 2
+#define ofxSA_GUI_THEME_IMGUI_DEFAULT 3
 
 // - - - - -
 // Helpers

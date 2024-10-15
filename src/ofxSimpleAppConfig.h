@@ -99,9 +99,29 @@
 #       define ofxSA_GLES_VERSION 3
 #   endif
 #endif
+#ifdef ofxSA_BACKGROUND_CLEARING
+//  Default BG color
+#   ifndef ofxSA_BACKGROUND_CLEARING_COLOR
+#       define ofxSA_BACKGROUND_CLEARING_COLOR ofColor(0,0,0, 255);
+#   endif
+//  Enable BG clearing gui by default
+#   ifndef ofxSA_BACKGROUND_CLEARING_GUI
+#       define ofxSA_BACKGROUND_CLEARING_GUI
+#   endif
+#endif
+#ifdef ofxSA_BACKGROUND_FADING
+//  Default BG fading color
+#   ifndef ofxSA_BACKGROUND_FADING_COLOR
+#       define ofxSA_BACKGROUND_FADING_COLOR ofFloatColor(0.01,0.01,0.01,0.0);
+#   endif
+//  Enable BG fading gui by default
+#   ifndef ofxSA_BACKGROUND_FADING_GUI
+#       define ofxSA_BACKGROUND_FADING_GUI
+#   endif
+#endif
 //#define ofxSA_TEXTURE_LIMIT_PX
 
-// todo: VSync, BG-clearing, antialiasing, etc ?
+// todo: VSync, antialiasing, etc ?
 
 //#define ofxSA_ENABLE_PROFILING
 
@@ -457,6 +477,10 @@
 // - - - -
 // Features: Opt-Ins
 
+// Runtime options
+//#define ofxSA_BACKGROUND_CLEARING
+//#define ofxSA_BACKGROUND_FADING
+
 // XML Engine
 //#define ofxSA_XML_ENGINE ofxSA_XML_ENGINE_PUGIXML
 //#define ofxSA_XML_FILENAME "Settings.xml"
@@ -485,3 +509,5 @@
 //#define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY OF_KEY_PAGE_DOWN // false to disable
 //#define ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME 'PGDWN'
 //#define ofxSA_TIME_MEASUREMENTS_AUTO_ENABLED false
+
+//#define ofxSA_NDI_SENDER_ENABLE

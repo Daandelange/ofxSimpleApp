@@ -118,7 +118,10 @@ protected:
         virtual void onContentResize(unsigned int _width, unsigned int _height);
 
 		//void updateViewport();
+		// Returns the document viewport
         ofRectangle getGuiViewport(bool returnScreenCoords=false) const;
+        // Returns the document size
+        ofRectangle getDocumentSize() const;
 		//ofRectangle curViewport;
 
 		// Xml settings
@@ -229,5 +232,16 @@ protected:
 		ofxNDIsender ndiSender;
 		bool startNdi();
 		void stopNdi();
+#endif
+
+#ifdef ofxSA_BACKGROUND_CLEARING
+	protected:
+		bool bEnableClearing = true;
+		ofFloatColor bgClearColor = ofxSA_BACKGROUND_CLEARING_COLOR;
+#endif
+#ifdef ofxSA_BACKGROUND_FADING
+	protected:
+		bool bEnableFading = true;
+		ofFloatColor bgFadeColor = ofxSA_BACKGROUND_FADING_COLOR;
 #endif
 };

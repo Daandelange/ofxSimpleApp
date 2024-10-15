@@ -745,7 +745,7 @@ void ofxSATimeline::drawImGuiPlayControls(bool horizontalLayout){
 
         // Play speed
         double speed = playSpeed;
-        if(ImGui::DragScalar("Speed", ImGuiDataType_Double, &speed, 0.005f, &speedMin, &speedMax, "%7.3f")){
+        if(ImGui::DragScalar("Speed", ImGuiDataType_Double, &speed, 0.05f, &speedMin, &speedMax, "%7.3f")){
             setPlaySpeed(speed);
         }
 
