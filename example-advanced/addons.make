@@ -1,0 +1,8 @@
+ofxSimpleApp
+ofxImGui
+ofxSyphon
+ofxFFmpegRecorder
+ofxFastFboReader
+ofxTimeMeasurements
+ofxNDI
+ofxPugiXml

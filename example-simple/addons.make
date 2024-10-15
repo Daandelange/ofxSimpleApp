@@ -1,0 +1,3 @@
+ofxSimpleApp
+ofxImGui
+ofxPugiXml
