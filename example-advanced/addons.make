@@ -5,4 +5,4 @@ ofxFFmpegRecorder
 ofxFastFboReader
 ofxTimeMeasurements
 ofxNDI
-ofxPugiXml
+ofxPugiXML

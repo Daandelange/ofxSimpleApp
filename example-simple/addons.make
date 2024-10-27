@@ -1,3 +1,3 @@
 ofxSimpleApp
 ofxImGui
-ofxPugiXml
+ofxPugiXML
