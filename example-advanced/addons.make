@@ -5,4 +5,5 @@ ofxFFmpegRecorder
 ofxFastFboReader
 ofxTimeMeasurements
 ofxNDI
+ofxImGuiAddonWidgets
 ofxPugiXML

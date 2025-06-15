@@ -182,7 +182,7 @@ protected:
 	protected:
 #	if !ofxSA_TIMELINE_SINGLETON
 		ofxSATimeline timeline;
-#endif
+#	endif
 		bool bShowTimeClockWindow = true;
 		virtual void ImGuiDrawTimeline();
 #endif

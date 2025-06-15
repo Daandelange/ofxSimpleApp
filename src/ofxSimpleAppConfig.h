@@ -12,6 +12,7 @@
 // No special characters are allowed in the file name, including dashes and periods.
 // #define ofxSA_CONFIG_HEADER_FILE ofxSAUserConfig
 #ifdef ofxSA_CONFIG_HEADER_FILE
+    // Todo: rather use #if __has_include("ofxSAUserConfig.h")
     // String empty ? --> Use default file name filename
 #   if (ofxSA_APPENDONE_I(ofxSA_CONFIG_HEADER_FILE) == 1)
 #       pragma message "ofxSA : Loading & sanitising custom config file !"
@@ -19,7 +20,8 @@
 #   else
     // Or use the define as a file name to include
 #       pragma message "ofxSA : Loading & sanitising custom config file with custom name !"
-#       include ofxSA_STRINGIFY(ofxSA_CONFIG_HEADER_FILE.h)
+//#       include ofxSA_STRINGIFY(ofxSA_CONFIG_HEADER_FILE.h)
+#       include "ofxSAUserConfig.h"
 #   endif
 #else
 #   pragma message "ofxSA : No custom user config, loading defaults !"

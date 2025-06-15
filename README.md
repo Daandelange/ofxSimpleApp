@@ -28,7 +28,7 @@ You need the following addons:
 Depending on your configuration's opt-ins, you'll need some extra addons with your project.  
 Please refer to the [Configuration](./#Configuration) section below for correspondance with the config flags.
 
-- [ofxNdi](https://github.com/leadedge/ofxNDI/)
+- [ofxNdi](https://github.com/leadedge/ofxNDI/) + [ofxImGuiAddonWidgets](https://github.com/Daandelange/ofxImGuiAddonWidgets)
 - [ofxSyphon](https://github.com/astellato/ofxSyphon)
 - [ofxFastFboReader](https://github.com/NickHardeman/ofxFastFboReader) _(Sorry, a fork of a fork, maybe [the original](https://github.com/satoruhiga/ofxFastFboReader) works too)_
 - [ofxTimeMeasurements](https://github.com/armadillu/ofxTimeMeasurements)

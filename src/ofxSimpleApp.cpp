@@ -28,6 +28,7 @@
 #	include "ofxPugiXMLHelpers.h"
 #endif
 
+#include "GLFW/glfw3.h" // for the runtime tab
 //------
 // STATICS
 std::pair<ofLogLevel, std::string> ofxSimpleApp::ofLogLevels[] = {
@@ -198,6 +199,8 @@ void ofxSimpleApp::setup(){
 	// Restore settings on launch
 	loadXmlSettings();
 
+    // This one is not automagically bound by OF (seems only supported in GLFW windows)
+    //ofAddListener(ofGetCurrentWindow()->events().windowMoved, this, &ofxSimpleApp::windowMoved, OF_EVENT_ORDER_APP);
 }
 
 void ofxSimpleApp::exit(){
@@ -219,6 +222,9 @@ void ofxSimpleApp::exit(){
 #ifdef ofxSA_NDI_SENDER_ENABLE
     ndiSender.ReleaseSender();
 #endif
+
+    // This one is not automagically bound by OF (seems only supported in GLFW windows)
+    //ofRemoveListener(ofGetCurrentWindow()->events().windowMoved, this, &ofxSimpleApp::windowMoved, OF_EVENT_ORDER_APP);
 }
 
 //--------------------------------------------------------------
@@ -1805,9 +1811,60 @@ ImGui::Separator();
                 } // end build info
 
                 // Runtime
-                if( false && ImGui::BeginTabItem("Runtime") ){
+                if( ImGui::BeginTabItem("Runtime") ){
+
+
+                    // Monitor information
+                    ImGui::SeparatorText("Displays");
+
+                    // Courtesy of d3cod3/Mosaic
+                    GLFWmonitor* primaryMonitor = glfwGetPrimaryMonitor();
+                    if(primaryMonitor){
+                        // Todo: move to setup ?
+                        const GLFWvidmode * mode = glfwGetVideoMode(primaryMonitor); // for monitor resolution
+                        bool    isRetina;
+                        int     retinaScale;
+                        int     pixelScreenScale;
+                        float   xScreenContentScale, yScreenContentScale;
+                        int     wScreenMM, hScreenMM;
+                        int     wRes,hRes;
+                        float   monitorContentScale;
+                        float   pixelsxMM;
+                        float   fontScaling;
+                        int                             suggestedFontSize;
+
+                        wRes = mode->width;
+                        hRes = mode->height;
+                        glfwGetMonitorContentScale(primaryMonitor, &xScreenContentScale, &yScreenContentScale);
+                        glfwGetMonitorPhysicalSize(primaryMonitor, &wScreenMM, &hScreenMM);
+
+                        pixelsxMM = mode->height/hScreenMM;
+                        suggestedFontSize = static_cast<int>(ofMap(yScreenContentScale,1,8,10,56));
+
+                        // RETINA FIX
+                        fontScaling = 1;
+                        retinaScale = yScreenContentScale;
+                        isRetina = false;
+                        if(retinaScale > 1){
+                            isRetina = true;
+                        }
+                        pixelScreenScale = retinaScale*fontScaling;
+
+                        ImGui::Spacing();
+                        ImGui::Text("Primary Monitor:");
+                        ImGui::Spacing();
+                        ImGui::Text("Resolution: %sx%s", ofToString(wRes).c_str(),ofToString(hRes).c_str());
+                        ImGui::Text("Physical Dimensions: %sx%s mm", ofToString(wScreenMM).c_str(),ofToString(hScreenMM).c_str());
+                        ImGui::Text("Retina Scale ( Retina Screens ): %s",ofToString(retinaScale).c_str());
+                        ImGui::Text("Screen Content Scale ( OS managed, accessibility ): %s",ofToString(xScreenContentScale).c_str());
+                        ImGui::Text("Pixel density ( Resolution over Physical Size): %s",ofToString(pixelsxMM).c_str());
+                        ImGui::Text("Suggested font size: %s",ofToString(suggestedFontSize+(4*retinaScale)).c_str());
+                    }
+
+                    ImGui::Spacing();
+
                     // osx
-                    // Required to install cude devkit : https://developer.nvidia.com/cuda-downloads
+                    // Required to install cuda devkit : https://developer.nvidia.com/cuda-downloads
                     // Look at : https://github.com/phvu/cuda-smi/blob/master/cuda-smi.cpp
 
                     // Todo : https://gitlab.artificiel.org/ofxaddons/ofxnvidiasmi
