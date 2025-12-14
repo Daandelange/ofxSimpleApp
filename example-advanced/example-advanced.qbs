@@ -29,7 +29,8 @@ Project{
             'ofxTimeMeasurements',
             'ofxNDI',
             'ofxPugiXML',
-            'ofxImGuiAddonWidgets'
+            'ofxImGuiAddonWidgets',
+            'ofxPlayHead',
         ]
 
         // additional flags for the project. the of module sets some

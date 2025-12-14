@@ -4,6 +4,7 @@
 #pragma once
 
 #include "BaseTheme.h"
+#include "imgui.h"
 
 class UnrealTheme : public ofxImGui::BaseTheme {
 
@@ -36,7 +37,11 @@ class UnrealTheme : public ofxImGui::BaseTheme {
         style.GrabRounding = 0.0;
         style.TabRounding = 4.0;
         style.TabBorderSize = 0.0;
+        #if IMGUI_VERSION_NUM < 19190 // be nice with old imgui versions
         style.TabMinWidthForCloseButton = 0.0;
+        #else
+        style.TabCloseButtonMinWidthUnselected = 0.0;
+        #endif
         style.ColorButtonPosition = ImGuiDir_Right;
         style.ButtonTextAlign = ImVec2(0.5, 0.5);
         style.SelectableTextAlign = ImVec2(0.0, 0.0);

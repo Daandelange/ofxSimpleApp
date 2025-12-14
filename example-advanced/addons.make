@@ -7,3 +7,4 @@ ofxTimeMeasurements
 ofxNDI
 ofxImGuiAddonWidgets
 ofxPugiXML
+ofxPlayHead
