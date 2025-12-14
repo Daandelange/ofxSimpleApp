@@ -36,6 +36,12 @@ class ofApp : public ofxSimpleApp {
         float ballSize = 10.f; // px
         float ballSpeed = 500.f; // px/second
 
+        // Debugging
+#ifdef ofxSA_TIMELINE_ENABLE
+        bool bVisualiseTimelineVariables = true;
+#endif
+        bool bDisplayTimeInfo = true;
+
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
         virtual bool populateXmlSettings(pugi::xml_node& _node) override;
         virtual bool retrieveXmlSettings(pugi::xml_node& _node) override;
@@ -43,9 +49,11 @@ class ofApp : public ofxSimpleApp {
 
         // Timeline
 #ifdef ofxSA_TIMELINE_ENABLE
-        bool onTimelineRestart(std::size_t& _loopCount);
-        bool onTimelineFrame(ofxSATimeCounters& _counters);
-        bool onTimelinePause(bool& _paused);
-        bool onTimelineSeek(ofxSATimeCounters& _counters);
+        bool onTimelineRestart(const std::size_t& _loopCount);
+        bool onTimelineFrame(const ofxPHTimeCounters& _counters);
+        bool onTimelinePause(const bool& _paused);
+        bool onTimelineSeek(const ofxPHTimeCounters& _counters);
 #endif
+
+        //ofImage bgImage;
 };

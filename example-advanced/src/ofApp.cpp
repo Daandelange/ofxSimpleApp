@@ -69,7 +69,7 @@ void ofApp::drawScene(){
 
     // Get timeline data
 #ifdef ofxSA_TIMELINE_ENABLE
-    ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
+    ofxPlayhead& tl = ofxSA_TIMELINE_GET(timeline);
     const unsigned int frameNum = tl.getFrameNum();
     const double elapsedSeconds = tl.getElapsedSeconds();
     const double deltaTime = tl.getCounters().tDelta;
@@ -83,33 +83,37 @@ void ofApp::drawScene(){
     ofRectangle bounds = getDocumentSize();
 
     // Draw frame info
-    ofDrawBitmapStringHighlight(ofToString("Seconds= ")+ofToString(elapsedSeconds, 2), 20, yPos); yPos+=lineSpacing;
-    ofDrawBitmapStringHighlight(ofToString("Frame  = ")+ofToString(frameNum), 20, yPos); yPos+=lineSpacing;
+    if(bDisplayTimeInfo){
+        ofDrawBitmapStringHighlight(ofToString("Seconds= ")+ofToString(elapsedSeconds, 2), 20, yPos); yPos+=lineSpacing;
+        ofDrawBitmapStringHighlight(ofToString("Frame  = ")+ofToString(frameNum), 20, yPos); yPos+=lineSpacing;
+    }
 
     // Demonstrate Timeline Ramps usage
 #ifdef ofxSA_TIMELINE_ENABLE
-    ofFill();
-    ofSetColor(0,0,0,255);
-    ofDrawRectangle(0, yPos, bounds.width, yPos+lineSpacing*6);
-    ofSetColor(255,255,255,255);
-    ofDrawRectangle(0, yPos, tl.getRamps().barProgress*bounds.width, 20); yPos+=lineSpacing;
-    ofDrawBitmapStringHighlight("barProgress", 20, yPos-5);
+    if(bVisualiseTimelineVariables){
+        ofFill();
+        ofSetColor(0,0,0,255);
+        ofDrawRectangle(0, yPos, bounds.width, yPos+lineSpacing*6);
+        ofSetColor(255,255,255,255);
+        ofDrawRectangle(0, yPos, tl.getRamps().barProgress*bounds.width, 20); yPos+=lineSpacing;
+        ofDrawBitmapStringHighlight("barProgress", 20, yPos-5);
 
-    ofDrawRectangle(0, yPos, tl.getRamps().barStep*bounds.width, 20); yPos+=lineSpacing;
-    ofDrawBitmapStringHighlight("barStep", 20, yPos-5);
+        ofDrawRectangle(0, yPos, tl.getRamps().barStep*bounds.width, 20); yPos+=lineSpacing;
+        ofDrawBitmapStringHighlight("barStep", 20, yPos-5);
 
-    yPos+=lineSpacing;
-    ofDrawRectangle(0, yPos, tl.getRamps().beatProgress*bounds.width, 20); yPos+=lineSpacing;
-    ofDrawBitmapStringHighlight("beatProgress", 20, yPos-5);
-    ofDrawRectangle(0, yPos, tl.getRamps().beatStep*bounds.width, 20); yPos+=lineSpacing;
-    ofDrawBitmapStringHighlight("beatStep", 20, yPos-5);
+        yPos+=lineSpacing;
+        ofDrawRectangle(0, yPos, tl.getRamps().beatProgress*bounds.width, 20); yPos+=lineSpacing;
+        ofDrawBitmapStringHighlight("beatProgress", 20, yPos-5);
+        ofDrawRectangle(0, yPos, tl.getRamps().beatStep*bounds.width, 20); yPos+=lineSpacing;
+        ofDrawBitmapStringHighlight("beatStep", 20, yPos-5);
 
 
-    yPos+=lineSpacing;
-    ofDrawRectangle(0, yPos, tl.getRamps().noteProgress*bounds.width, 20); yPos+=lineSpacing;
-    ofDrawBitmapStringHighlight("noteProgress", 20, yPos-5);
-    ofDrawRectangle(0, yPos, tl.getRamps().noteStep*bounds.width, 20); yPos+=lineSpacing;
-    ofDrawBitmapStringHighlight("noteStep", 20, yPos-5);
+        yPos+=lineSpacing;
+        ofDrawRectangle(0, yPos, tl.getRamps().noteProgress*bounds.width, 20); yPos+=lineSpacing;
+        ofDrawBitmapStringHighlight("noteProgress", 20, yPos-5);
+        ofDrawRectangle(0, yPos, tl.getRamps().noteStep*bounds.width, 20); yPos+=lineSpacing;
+        ofDrawBitmapStringHighlight("noteStep", 20, yPos-5);
+    }
 #endif
 
     // Demonstrate simulation with delta time
@@ -144,6 +148,7 @@ void ofApp::drawGui(){
 
     // Our custom app window
     if(ImGui::Begin(ofxSA_APP_NAME)){
+        // Draw the ball simulation
         ImGui::SeparatorText("Ball Simulation Settings");
         ImGui::DragFloat("Ball Speed", &ballSpeed, 1.f, 1.f, 1000.f, "%.1f");
         ImGui::DragFloat("Ball Size", &ballSize, 1.f, 1.f, 50.f, "%.0f");
@@ -153,6 +158,13 @@ void ofApp::drawGui(){
             launchBall();
         }
         ImGui::TextDisabled("When you save this session \nball settings should restore.");
+
+        // Debug features
+        ImGui::Spacing();
+        ImGui::SeparatorText("Debug");
+        ImGui::Checkbox("Show time info", &bDisplayTimeInfo);
+        ImGui::Checkbox("Visualise timeline variables.", &bVisualiseTimelineVariables);
+
     }
     ImGui::End();
 
@@ -271,19 +283,19 @@ bool ofApp::retrieveXmlSettings(pugi::xml_node& _node){
 
 //--------------------------------------------------------------
 #ifdef ofxSA_TIMELINE_ENABLE
-bool ofApp::onTimelineRestart(std::size_t& _loopCount){
+bool ofApp::onTimelineRestart(const std::size_t& _loopCount){
     ofLogNotice("ofApp::onTimelineRestart") << "Timeline restarting with loopCount=" << _loopCount;
     return true;
 }
-bool ofApp::onTimelineFrame(ofxSATimeCounters& _counters){
+bool ofApp::onTimelineFrame(const ofxPHTimeCounters& _counters){
     //ofLogNotice("ofApp::onTimelineFrame") << "Timeline new frame = " << _counters.frameNum;
     return true;
 }
-bool ofApp::onTimelineSeek(ofxSATimeCounters& _counters){
+bool ofApp::onTimelineSeek(const ofxPHTimeCounters& _counters){
     ofLogNotice("ofApp::onTimelineSeek") << "Timeline seeked to " << _counters.elapsedSeconds() << " seconds.";
     return true;
 }
-bool ofApp::onTimelinePause(bool& _paused){
+bool ofApp::onTimelinePause(const bool& _paused){
     ofLogNotice("ofApp::onTimelinePause") << "Timeline paused at " << ofxSA_TIMELINE_GET(timeline).getElapsedSeconds() << " seconds.";
     return true;
 }

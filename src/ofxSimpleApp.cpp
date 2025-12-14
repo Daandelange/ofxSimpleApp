@@ -196,6 +196,16 @@ void ofxSimpleApp::setup(){
     startNdi();
 #endif
 
+	// Quad wrapping
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+	auto docRect = getDocumentSize();
+	quadWarper.setup(0, 0, docRect.getWidth(), docRect.getHeight()); // initial size = fulscreen
+	quadWarper.load();// try autoload from save
+	quadWarper.drawSettings.bDrawRectangle = true;
+	quadWarper.drawSettings.bDrawCorners = true;
+	bEnableQuadWarper = false;
+#endif
+
 	// Restore settings on launch
 	loadXmlSettings();
 
@@ -271,6 +281,12 @@ void ofxSimpleApp::draw(){
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_START("ofxSimpleApp::drawScene()");
 #endif
+
+    // Reset new frame
+#if ofxSA_NEWFRAME_FLAGGER == 1
+    bNewFrame = false;
+#endif
+
     // Start canvas ?
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.fbo.begin();
@@ -307,11 +323,31 @@ void ofxSimpleApp::draw(){
         glBlendEquation(GL_FUNC_ADD);
         glBlendFunc(GL_SRC_COLOR, GL_DST_COLOR);
         ofPopStyle();
+
+#if ofxSA_NEWFRAME_FLAGGER == 1
+        flagNewFrame();
+#endif
     }
+#endif
+
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+    if(bEnableQuadWarper){
+        // Erase BG as wrapped tex is not guaranteed to cover the whole screen
+        ofClear(0,0,0,255);
+        // activate wrapper
+        quadWarper.begin();
+
+    }
+#else
+//    std::cout << "Holy ****!" << std::endl;
 #endif
 
     // Call the custom draw function
     drawScene();
+
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+    if(bEnableQuadWarper) quadWarper.end();
+#endif
 
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_STOP("ofxSimpleApp::drawScene()");
@@ -369,22 +405,30 @@ void ofxSimpleApp::draw(){
 
 //--------------------------------------------------------------
 void ofxSimpleApp::drawScene(){
-
+#if ofxSA_NEWFRAME_FLAGGER == 1
+        flagNewFrame();
+#endif
 }
 
 //--------------------------------------------------------------
 #ifdef ofxSA_SYPHON_OUTPUT
 void ofxSimpleApp::publishSyphonTexture(){
-    if(bEnableSyphonOutput){
+    // Limit emissions only to new frames
+#if ofxSA_NEWFRAME_FLAGGER == 1
+    if(bRecordersOnlyPublishNewFrames && !isNewFrame()) return;
+#endif
+
+    // Disabled ?
+    if(!bEnableSyphonOutput) return;
+
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-        syphonServer.publishTexture(&canvas.fbo.getTexture());
+    syphonServer.publishTexture(&canvas.fbo.getTexture());
 #else
         // By default, this publishes the full window.
         // You can override this to publish a custom texture.
         syphonServer.publishScreen();
 #endif
-        syphonFps.newFrame();
-    }
+    syphonFps.newFrame();
 }
 #endif
 
@@ -465,7 +509,7 @@ bool ofxSimpleApp::startRecordingCanvas(){
 
     // Sync timeline
 #ifdef ofxSA_TIMELINE_ENABLE
-	ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
+	ofxPlayhead& tl = ofxSA_TIMELINE_GET(timeline);
 	tl.startNextFrame(glm::max(0,recordFrameRange[0]));
 #   else
     recordStartSeconds = ofGetElapsedTimef();
@@ -565,6 +609,10 @@ bool ofxSimpleApp::stopRecordingCanvas(){
 
 void ofxSimpleApp::recordCanvasFrame(){
 
+#if ofxSA_NEWFRAME_FLAGGER == 1
+    if(bRecordersOnlyPublishNewFrames && !isNewFrame()) return;
+#endif
+
     if (isRecordingCanvas ) {
         bool bDataLoaded = false;
 #   ifndef ofxSA_CANVAS_OUTPUT_ENABLE
@@ -600,11 +648,15 @@ void ofxSimpleApp::recordCanvasFrame(){
 }
 #include <future> // for async
 void ofxSimpleApp::recordCanvasPixels(const ofPixels& _pixels){
+#if ofxSA_NEWFRAME_FLAGGER == 1
+    if(bRecordersOnlyPublishNewFrames && !isNewFrame()) return;
+#endif
+
     if( isRecordingCanvas && _pixels.getWidth() > 0 && _pixels.getHeight() > 0){
 #ifdef ofxSA_TIMELINE_ENABLE
         const auto& tl = ofxSA_TIMELINE_GET(timeline);
         unsigned int curFrame = tl.getFrameNum();
-        bool realTimeRecording = tl.getPlayMode()!=ofxSATimelineMode_Offline;
+        bool realTimeRecording = tl.getPlayMode()!=ofxPlayheadMode_Offline;
 
         // Check autoStop (is this the right place to do this??)
         const bool autoStop = (recordFrameRange[1] > 0 && tl.getFrameNum() > recordFrameRange[1]+1);
@@ -1257,10 +1309,53 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
         // Any Modules Enabled ?
 #ifdef ofxSA_HAS_MODULES_MENU
         if(ImGui::BeginMenu("Modules")){
+#   ifdef ofxSA_QUADWRAPPER_ENABLE
+            if(ImGui::BeginMenu("Quad Wrapper")){
+                ImGui::Dummy({ofxSA_UI_MARGIN, ofxSA_UI_MARGIN});
+                ImGui::TextDisabled("Experimental feature !");
+                ImGui::SeparatorText("Quad Wrapping");
+                ImGui::Checkbox("Enable Quad Wrapping", &bEnableQuadWarper);
+                static bool bEnableQuadEditing = false;
+                if(ImGui::Checkbox("Enable Editing Quads", &bEnableQuadEditing)){
+                    quadWarper.activate(bEnableQuadEditing); // to enable event listeners for easily configuring the quads
+                }
+                ImGui::Text("Quads :");
+                ImGui::SameLine();
+                if(ImGui::Button("Reset")){
+                    auto docRect = getDocumentSize();
+                    quadWarper.setup(0, 0, docRect.getWidth(), docRect.getHeight());
+                }
+                ImGui::SameLine();
+                if(ImGui::Button("Save")){
+                    quadWarper.save();
+                }
+                ImGui::SameLine();
+                if(ImGui::Button("Load")){
+                    quadWarper.load();
+                }
+                static std::pair<const char*, ofxGLWarper::CornerLocation> cornerModes[4] = {
+                    { "TL", ofxGLWarper::TOP_LEFT},
+                    { "TR", ofxGLWarper::TOP_RIGHT},
+                    { "BR", ofxGLWarper::BOTTOM_RIGHT},
+                    { "BL", ofxGLWarper::BOTTOM_LEFT}
+                };
+                for(auto& cornerMode : cornerModes){
+                    ImVec2 corner = quadWarper.getCorner(cornerMode.second);
+                    if(ImGuiEx::DragPad2(cornerMode.first, corner)){
+                        quadWarper.setCorner(cornerMode.second, corner);
+                    }
+                }
+                ImGui::EndMenu();
+            }
+#   endif
+
 #   ifdef ofxSA_SYPHON_OUTPUT
             if(ImGui::BeginMenu("Syphon")){
                 ImGui::SeparatorText("Server");
                 ImGui::Checkbox("Enable syphon output", &bEnableSyphonOutput);
+#if ofxSA_NEWFRAME_FLAGGER == 1
+                ImGui::Checkbox("Only publish new frames", &bRecordersOnlyPublishNewFrames);
+#endif
                 static char syphonServerName[ofxSA_SYPHON_NAME_MAXLEN];//
                 if(ImGui::InputText("Server Name", &syphonServerName[0], ofxSA_SYPHON_NAME_MAXLEN, ImGuiInputTextFlags_EnterReturnsTrue)){
                      syphonServer.setName(syphonServerName);
@@ -1299,9 +1394,13 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                     recordingTargetName = newFileName;
                     std::cout << "NewName=" << recordingTargetName << std::endl;
                 }
-                if(!ImGui::IsItemActive()){
+                if(!ImGui::IsItemActive()){ // checkme : and just been disabled ? or wasActive...
                     std::strncpy(newFileName, recordingTargetName.c_str(), IM_ARRAYSIZE(newFileName)-1);
                 }
+
+#if ofxSA_NEWFRAME_FLAGGER == 1
+                ImGui::Checkbox("Only publish new frames", &bRecordersOnlyPublishNewFrames);
+#endif
 
                 // Cur/Next filename
                 if(isRecordingCanvas){
@@ -1430,6 +1529,9 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 ImGui::SeparatorText("Server");
                 bool bNdiEnabled = ndiSender.SenderCreated();
                 ImGuiEx::ofxNdiSenderSetup(ndiSender);
+#if ofxSA_NEWFRAME_FLAGGER == 1
+                ImGui::Checkbox("Only publish new frames", &bRecordersOnlyPublishNewFrames);
+#endif
 
                 ImGui::SeparatorText("Runtime settings");
                 ImGuiEx::ofxNdiSenderSettings(ndiSender);
@@ -1988,7 +2090,7 @@ void ofxSimpleApp::onContentResize(unsigned int _width, unsigned int _height){
 #ifdef ofxSA_TIMELINE_ENABLE
 void ofxSimpleApp::ImGuiDrawTimeline(){
     if(bShowTimeClockWindow){
-        ofxSA_TIMELINE_GET(timeline).drawImGuiTimelineWindow(&bShowTimeClockWindow);
+        ofxSA_TIMELINE_GET(timeline).drawImGuiWindow(&bShowTimeClockWindow);
     }
 }
 #endif
@@ -2021,7 +2123,7 @@ ofRectangle ofxSimpleApp::getGuiViewport(bool returnScreenCoords) const {
         // Return visible zone (without docking spaces and menus)
         curViewport = dockingViewport;
 
-        // Make them relative
+        // Make them relative to screen (absolute in fact)
         if(!returnScreenCoords && ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable ){
             curViewport.position.x -= ofGetWindowPositionX();
             curViewport.position.y -= ofGetWindowPositionY();
@@ -2042,6 +2144,7 @@ ofRectangle ofxSimpleApp::getDocumentSize() const {
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     return {0, 0, (float)canvas.getCanvasWidth(), (float)canvas.getCanvasHeight()};
 #else
+    // Fallback to window size
     return ofGetCurrentViewport();
 #endif
 }
@@ -2174,11 +2277,11 @@ bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
     success = xml.saveFile(ofxSA_XML_FILENAME);
 #endif
     if(success){
-        ofLogNotice("ofxSimpleApp::saveXmlSettings()") << "Saved settings to `settings.xml` !";
+        ofLogNotice("ofxSimpleApp::saveXmlSettings()") << "Saved settings to `" << path << "`.";
         return true;
     }
     else {
-        ofLogError("ofxSimpleApp::saveXmlSettings()") << "Failed saving settings to `settings.xml` !";
+        ofLogError("ofxSimpleApp::saveXmlSettings()") << "Failed saving settings to `" << path << "` !";
         return false;
     }
 }
@@ -2225,7 +2328,7 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     // Timeline settings
 #ifdef ofxSA_TIMELINE_ENABLE
     pugi::xml_node timelineSettingsNode = _node.append_child("timeline");
-    ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
+    ofxPlayhead& tl = ofxSA_TIMELINE_GET(timeline);
     ret *= timelineSettingsNode && tl.populateXmlNode(timelineSettingsNode);
 #endif
 
@@ -2292,7 +2395,7 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
 
     // Todo: Timeline settings
 #ifdef ofxSA_TIMELINE_ENABLE
-    ofxSATimeline& tl = ofxSA_TIMELINE_GET(timeline);
+    ofxPlayhead& tl = ofxSA_TIMELINE_GET(timeline);
     pugi::xml_node timelineSettingsNode = _node.child("timeline");
     ret *= timelineSettingsNode && tl.retrieveXmlNode(timelineSettingsNode);
 #endif
@@ -2326,7 +2429,7 @@ void ofxSimpleApp::onCanvasContentResize(ContentResizeArgs& _args){
 
 #ifdef ofxSA_TEXRECORDER_ENABLE
 #	ifdef ofxSA_TIMELINE_ENABLE
-bool ofxSimpleApp::onTimelineRestart(std::size_t& _loopCount){
+bool ofxSimpleApp::onTimelineRestart(const std::size_t& _loopCount){
 	if(isRecordingCanvas && bRecorderStopOnLoop && _loopCount>0){
 		stopRecordingCanvas();
 	}

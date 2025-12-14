@@ -40,6 +40,7 @@ Please refer to the [Configuration](./#Configuration) section below for correspo
 - [Daandelange/ofxPugiXML](https://github.com/Daandelange/ofxPugiXML) _(Sorry, a fork of a fork)_
 - [Daandelange/ofxPlayhead](https://github.com/Daandelange/ofxPlayhead)
 - [Daandelange/ofxImGuiAddonWidgets](https://github.com/Daandelange/ofxImGuiAddonWidgets)
+- [roymacdonald/ofxGLWarper](https://github.com/roymacdonald/ofxGLWarper)
 
 
 # Compatibility
@@ -86,6 +87,9 @@ Please refer to the examples for detailed options.
 | ofxSA_TIME_MEASUREMENTS_TOGGLE_KEY_NAME       | | (verbose) |
 | ofxSA_TIME_MEASUREMENTS_AUTO_ENABLED          | | Auto-start on launch. |
 | **ofxSA_NDI_SENDER_ENABLE**                   | ofxNDI | Outputs the canvas/ofAppWindow to NDI. |
+| ofxSA_NEWFRAME_FLAGGER                        |  | Helper for detecting new frames. Also adds a Syphon option for only publishing new frames. |
+| ofxSA_QUADWRAPPER_ENABLE                      | ofxQuadWarper | Enables quad wrapping on the output canvas. |
+| ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW   | | Adds a 2ndary, standalone output window |
 
 
 # Examples

@@ -38,11 +38,15 @@
 // App Info
 
 // Credentials
+#ifndef ofxSA_APP_ID
+#   ifdef ofxSA_APP_NAME
+#      define ofxSA_APP_ID ofxSA_APP_NAME
+#   else
+#      define ofxSA_APP_ID "ofxSimpleAppDefaultID" // Important : No whitespaces, no special chars, serves as an ID !
+#   endif
+#endif
 #ifndef ofxSA_APP_NAME
 #   define ofxSA_APP_NAME "ofxSimpleApp"
-#endif
-#ifndef ofxSA_APP_ID
-#   define ofxSA_APP_ID "ofxSimpleAppDefaultID" // Important : No whitespaces, no special chars, serves as an ID !
 #endif
 #ifndef ofxSA_APP_AUTHOR
 #   define ofxSA_APP_AUTHOR "Anonymous"
@@ -122,6 +126,16 @@
 #   endif
 #endif
 //#define ofxSA_TEXTURE_LIMIT_PX
+// NewFrame flagger
+// Utility / also affects recorders (NDI, Syphon, TexRecorder)
+#if !defined(ofxSA_NEWFRAME_FLAGGER)
+#       define ofxSA_NEWFRAME_FLAGGER 0
+#else
+#   if ofxSA_NEWFRAME_FLAGGER != 0 && ofxSA_NEWFRAME_FLAGGER != 1
+#       define ofxSA_NEWFRAME_FLAGGER 0
+#   endif
+#endif
+
 
 // todo: VSync, antialiasing, etc ?
 
@@ -290,6 +304,10 @@
 #ifdef ofxSA_NDI_SENDER_ENABLE
 #endif
 
+// QUADWRAPPER
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+#endif
+
 // Sanitize Canvas setting (force-disable on unsupported platforms)
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 #   ifndef ofxSA_CANVAS_OUTPUT_DEFAULT_WIDTH
@@ -298,6 +316,15 @@
 #   ifndef ofxSA_CANVAS_OUTPUT_DEFAULT_HEIGHT
 #       define ofxSA_CANVAS_OUTPUT_DEFAULT_HEIGHT 1080
 #   endif
+#   ifndef ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW
+#       define ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW 0 // off by default
+#   endif
+#   ifndef ofxSA_SECONDARY_WINDOW_AUTOENABLED
+#       define ofxSA_SECONDARY_WINDOW_AUTOENABLED 0 // off by default
+#   endif
+#else
+    // Force-off when disabled
+#   define ofxSA_SECONDARY_WINDOW_AUTOENABLED 0
 #endif
 
 // Timeline settings
@@ -313,7 +340,7 @@
 #   endif
 //  Helper for getting the timeline instance
 #   if ofxSA_TIMELINE_SINGLETON
-#       define ofxSA_TIMELINE_GET(varname) ofxSATimeline::getTimeline()
+#       define ofxSA_TIMELINE_GET(varname) ofxPlayheadSingleton::get()
 #	else
 #       define ofxSA_TIMELINE_GET(varname) varname
 #   endif

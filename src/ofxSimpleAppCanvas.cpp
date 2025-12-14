@@ -1,4 +1,5 @@
 #include "ofxSimpleAppCanvas.h"
+#include "glfw3.h"
 
 ContentResizeArgs::ContentResizeArgs(unsigned int _width, unsigned int _height, float _scale) :
     width(_width),
@@ -11,7 +12,84 @@ ContentResizeArgs::ContentResizeArgs(unsigned int _width, unsigned int _height, 
 ofxSimpleAppCanvas::ofxSimpleAppCanvas(unsigned int _width, unsigned int _height){
     setViewportRect();
     setCanvasSize(_width, _height);
+
+    // Auto-create standalone window ?
+#if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1
+    bRenderExtraCanvasWindow = false;
+#   if ofxSA_SECONDARY_WINDOW_AUTOENABLED
+    if(auto mainWin = ofGetCurrentWindow()){ // Fixme: this is supposed to be the main window, not ensured.
+        if(auto mainWinGlfw = std::static_pointer_cast<ofAppGLFWWindow>(mainWin)){
+            setupSecondaryMonitor(mainWinGlfw);
+        }
+    }
+#   endif
+#endif
 }
+
+#if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1
+void ofxSimpleAppCanvas::onSecondaryWindowClose(ofEventArgs& args){
+    extraCanvasOutputWindowPtr = nullptr; // forget instance = autodestruct. Prevents calling methods on unvalid glfw handle.
+}
+void ofxSimpleAppCanvas::drawSecondaryMonitor(ofEventArgs &args){
+    // Always clear (black screen if not ready to draw)
+    ofBackground(0);
+
+    // Draw image ?
+    if(extraCanvasOutputWindowPtr && bRenderExtraCanvasWindow && fbo.isAllocated()){
+        fbo.draw(0,0);
+    }
+
+}
+void ofxSimpleAppCanvas::setupSecondaryMonitor(std::shared_ptr<ofAppGLFWWindow> sharedGlfwWindow){
+    if(!sharedGlfwWindow || !sharedGlfwWindow->getGLFWWindow()){
+        ofLogError("ofxSimpleAppCanvas::setupSecondaryMonitor") << "The window is not correctly setup and cannot be used !";
+        return;
+    }
+    ofGLFWWindowSettings outputWinSettings;
+    outputWinSettings.setGLVersion(ofxSA_GL_VERSION_MAJ, ofxSA_GL_VERSION_MIN); // important for shareContextWith: share within same GL version
+    outputWinSettings.title = "Canvas Output";
+    //settings.monitor = 0; // todo: set to 2nd monitor ?
+    if(sharedGlfwWindow){
+        outputWinSettings.shareContextWith = sharedGlfwWindow;
+    }
+    else {
+        ofLogWarning("ofxSimpleAppCanvas::setupSecondaryMonitor") << "Shared GL context window is not set ! The window will probably not work correctly !";
+    }
+    //outputWinSettings.windowMode=OF_GAME_MODE;
+    outputWinSettings.setSize(this->getCanvasWidth(), this->getCanvasHeight());
+    outputWinSettings.setPosition(ofVec2f(0,0));
+
+    // Create window
+#   if 0
+    // Like: ofCreateWindow, but keeping the detailed ptr
+    ofInit();
+    extraCanvasOutputWindowPtrGlfw = std::make_shared<ofAppGLFWWindow>();//ofCreateWindow();
+    extraCanvasOutputWindowPtrBase = extraCanvasOutputWindowPtrGlfw;
+    ofGetMainLoop()->addWindow(extraCanvasOutputWindowPtrGlfw);
+    extraCanvasOutputWindowPtrGlfw->setup(settings);
+#   else
+    auto extraCanvasOutputWindowPtrBase = ofCreateWindow(outputWinSettings);//ofGetMainLoop()->createWindow(settings);
+    extraCanvasOutputWindowPtr = std::static_pointer_cast<ofAppGLFWWindow>(extraCanvasOutputWindowPtrBase);
+#       ifdef ofxSA_DEBUG
+    const char* description;
+    int code = glfwGetError(&description);
+    if (description)
+        std::cout << ("ofxSimpleAppCanvas::setupSecondaryMonitor") << "Glfw couldn't create window ! Code="<< code << ", Description="<< description << std::endl;
+    else if(extraCanvasOutputWindowPtr->getGLFWWindow() == nullptr)
+        std::cout << ("ofxSimpleAppCanvas::setupSecondaryMonitor") << "No GLFW error but still incorrectly created ! (glfw)" << std::endl;
+#       endif
+
+    // Note: Reset of to main window, if events register against ofGetCurrentWindow()
+    if(sharedGlfwWindow) ofGetMainLoop()->setCurrentWindow(sharedGlfwWindow);
+#   endif
+    std::cout << "Created 2ndary window ! @" << extraCanvasOutputWindowPtr->getGLFWWindow() << "/sharedContext=" << outputWinSettings.shareContextWith << extraCanvasOutputWindowPtr->getWidth() << "x" << extraCanvasOutputWindowPtr->getHeight() << std::endl;
+
+    if(extraCanvasOutputWindowPtr){
+        ofAddListener(extraCanvasOutputWindowPtr->events().exit, this, &ofxSimpleAppCanvas::onSecondaryWindowClose);
+        ofAddListener(extraCanvasOutputWindowPtr->events().draw, this, &ofxSimpleAppCanvas::drawSecondaryMonitor);
+    }
+}
+#endif
 
 void ofxSimpleAppCanvas::setCanvasSize(unsigned int _width, unsigned int _height, float _scale){
     height = _height;
@@ -206,10 +284,12 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
     if(ImGui::DragFloat("Rendering scale", &scale, 0.05f, -10, 10, "%.2f", ImGuiSliderFlags_None)){
         reAllocate=true;
     }
-    if(ImGui::InputScalar("Width", ImGuiDataType_U32, &width, (void*)&pixelSteps[0], (void*)&pixelSteps[1], "%u px", ImGuiInputTextFlags_EnterReturnsTrue)){
+    ImGui::InputScalar("Width", ImGuiDataType_U32, &width, (void*)&pixelSteps[0], (void*)&pixelSteps[1], "%u px");
+    if(ImGui::IsItemDeactivatedAfterEdit()){
         reAllocate=true;
     }
-    if(ImGui::InputScalar("Height", ImGuiDataType_U32, &height, (void*)&pixelSteps[0], (void*)&pixelSteps[1], "%u px", ImGuiInputTextFlags_EnterReturnsTrue)){
+    ImGui::InputScalar("Height", ImGuiDataType_U32, &height, (void*)&pixelSteps[0], (void*)&pixelSteps[1], "%u px");
+    if(ImGui::IsItemDeactivatedAfterEdit()){
         reAllocate=true;
     }
     if(reAllocate){
@@ -225,6 +305,84 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
         ImGui::Checkbox("Checkerboard as viewport bg", &bDrawViewportCheckerboard);
         ImGui::TreePop();
     }
+#if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1
+    if(ImGui::TreeNode("Canvas Secondary Output Window")){
+        ImGui::TextDisabled("Experimental feature !");
+        if(ImGui::Checkbox("Output canvas to an extra window", &bRenderExtraCanvasWindow)){
+        }
+
+        ImGui::Text("Window set   : %s", extraCanvasOutputWindowPtr?"yes":"no");
+        ImGui::Text("Window ready : %s", (extraCanvasOutputWindowPtr && extraCanvasOutputWindowPtr->getGLFWWindow())?"yes":"no");
+        ImGui::Text("Winodw size  : %i x %i", (extraCanvasOutputWindowPtr)?extraCanvasOutputWindowPtr->getWidth():0, (extraCanvasOutputWindowPtr)?extraCanvasOutputWindowPtr->getHeight():0);
+        if(extraCanvasOutputWindowPtr){
+            bool bIsFullscreen = extraCanvasOutputWindowPtr->getSettings().windowMode == OF_FULLSCREEN;
+            if(ImGui::Checkbox("Fullscreen", &bIsFullscreen)){
+                extraCanvasOutputWindowPtr->setFullscreen(bIsFullscreen);
+            }
+            static bool bIsVSync = true;// = extraCanvasOutputWindowPtr-> == OF_FULLSCREEN;
+            if(ImGui::Checkbox("V-Sync", &bIsVSync)){
+                extraCanvasOutputWindowPtr->setVerticalSync(bIsVSync);
+            }
+            int monitorNum = extraCanvasOutputWindowPtr->getSettings().monitor;
+            auto glfwWin = extraCanvasOutputWindowPtr->getGLFWWindow();
+            GLFWmonitor* glfwActiveMonitor = nullptr;
+            const char* glfwActiveMonitorName = nullptr;
+            if(glfwWin){
+                glfwActiveMonitor = glfwGetWindowMonitor(glfwWin);
+                if(glfwActiveMonitor){
+                    const GLFWvidmode* mode = glfwGetVideoMode(glfwActiveMonitor);
+                    int width_mm, height_mm;
+                    glfwGetMonitorPhysicalSize(glfwActiveMonitor, &width_mm, &height_mm);
+                    const char* name = glfwGetMonitorName(glfwActiveMonitor);
+
+                    ImGui::Text("Window monitor : %s (%i x %i px)", name?name:"[no name]", width_mm, height_mm );// todo !
+                }
+            }
+            int count = 0;
+            const auto monitors = glfwGetMonitors(&count);
+            if(monitors){
+                if(ImGui::BeginCombo("Assign to monitor:", glfwActiveMonitorName)){
+                    for(int i = 0; i<count; i++){
+                        GLFWmonitor* monitor = monitors[i];
+                        const bool isActive = (glfwActiveMonitor == monitor);
+                        ImGui::PushID(monitor);
+                        int w,h;//,x,y;
+                        glfwGetMonitorPhysicalSize(monitor,&w,&h);
+                        //glfwGetMonitorPos(monitor,&x,&y);
+                        ImGui::Text("%2i - ", i); ImGui::SameLine();
+                        const char* monitorName = glfwGetMonitorName(monitor);
+                        if(ImGui::Selectable(monitorName?monitorName:"[no name]")){
+                            glfwSetWindowMonitor(glfwWin, monitor, 0, 0, width, height, 0);
+                        }
+                        // Set the initial focus when opening the combo (scrolling + keyboard navigation focus)
+                        if (isActive)
+                            ImGui::SetItemDefaultFocus();
+
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("%i x %i", w, h);
+                        ImGui::PopID();
+                    }
+                    ImGui::EndCombo();
+                }
+            }
+
+            if(ImGui::Button("Close window")){
+                extraCanvasOutputWindowPtr->setWindowShouldClose();
+                extraCanvasOutputWindowPtr = nullptr;
+            }
+        }
+        else {
+            if(ImGui::Button("Create window")){
+                if(auto cur = ofGetCurrentWindow()){
+                    if(auto curGlfw = std::static_pointer_cast<ofAppGLFWWindow>(cur)){
+                        setupSecondaryMonitor(curGlfw);
+                    }
+                }
+            }
+        }
+        ImGui::TreePop();
+    }
+#endif
 }
 
 // Viewport controls, ImGui HUD

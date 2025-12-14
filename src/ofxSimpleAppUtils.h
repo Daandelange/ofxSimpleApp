@@ -12,6 +12,14 @@
 #include "ofxTimeMeasurements.h"
 #endif
 
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+#ifdef ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW
+#include "ofxSimpleAppCanvas.h"
+#include "ofAppGLFWWindow.h"
+#include "glfw3.h"
+#endif
+#endif
+
 //void ofDrawBitMapStringHighlight(const std::string& _string, const ofRectangle& _rect){
 //    ofDrawBitmapStringHighlight(_string, _rect.getTopLeft(),)
 //}
@@ -43,8 +51,16 @@ int ofxSimpleAppGenericMain(){
 	TIME_SAMPLE_SET_FRAMERATE(ofxSA_FPS_CAP);
 #endif
 
-	// Run App
+	// Create App
 	auto app = std::make_shared<ofAppClass>();
+
+#ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+#ifdef ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW
+	//if(extraCanvasOutputWindowPtr) ofAddListener(extraCanvasOutputWindowPtr->events().draw, &app.get()->canvas, &ofxSimpleAppCanvas::drawSecondaryMonitor);
+#endif
+#endif
+
+	// Run App
 	ofRunApp(window, app);
 	ofRunMainLoop();
 
@@ -123,6 +139,9 @@ namespace ImGuiEx {
     // Wrapper for menuitem that can be opened with a local shortcut
     // Usage: if (ImGui::MenuItem("Global Exit", "Alt+X")){...}
     inline bool MenuItem(const char* label, const ImGuiKeyChord key);
+
+    // DragPad widget (translation vec2)
+    bool DragPad2(const char* label, ImVec2& vec);
 
     template<typename LoggerBuffer=ImGuiTextBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& );

@@ -212,6 +212,50 @@ namespace ImGuiEx {
         return ImGui::MenuItem(label, shortcut) || ImGui::IsKeyChordPressed(key);
     }
 
+    // DragPad (2d translations / offsets)
+    bool DragPad2(const char* label, ImVec2& vec){
+        ImGui::Text("%s", label); ImGui::SameLine();
+        ImVec2 availableSpace = { ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() };
+        bool ret = false;
+        availableSpace.x -= availableSpace.y + (ImGui::GetStyle().ItemSpacing.x*2.f);// + (ImGui::GetStyle().ItemInnerSpacing.x*4.f);
+        ImGui::PushID(label);
+        ImGui::SetNextItemWidth(availableSpace.x*.5f);
+        if(ImGui::DragFloat("##x", &vec.x, 1.f, 0.f, 10000, "%1.0f")){
+            ret = true;
+        }
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(availableSpace.x*.5f);
+        if(ImGui::DragFloat("##y", &vec.y, 1.f, 0.f, 10000, "%1.0f")){
+            ret = true;
+        }
+        ImGui::SameLine();
+        static ImVec2 mousePos;
+        static ImVec2 fromValue;
+        static void* beingDragged = nullptr;
+        static bool isDragging;
+        isDragging = label == beingDragged;
+        if(isDragging) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_ButtonActive)); // Force-Mark active (unhovered+active is not "held" state)
+        ImGui::Button("+##dragBtn", {availableSpace.y, availableSpace.y});
+        if(isDragging) ImGui::PopStyleColor();
+        if(isDragging){
+            if(ImGui::IsItemDeactivated()){
+                beingDragged = nullptr;
+                ret = true;
+            }
+            else if(ImGui::IsItemActive()){
+                ret = true; // Indicates an updated value while dragging (make this optional)
+                vec = fromValue + (ImGui::GetMousePos() - mousePos);
+            }
+        }
+        else if(ImGui::IsItemClicked()){
+            mousePos = ImGui::GetMousePos();
+            fromValue = vec;
+            beingDragged = (void*) label;
+        }
+        ImGui::PopID();
+        return ret;
+    }
+
     // - - - - Logger Helpers
     template<typename LoggerBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& ){

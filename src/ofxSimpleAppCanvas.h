@@ -13,8 +13,12 @@
 #include "pugixml.hpp"
 #endif
 
-// An FBO with  repaint support ?
+// An FBO with repaint support ?
 
+// Extra window support
+#if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1
+    #include "ofAppGLFWWindow.h"
+#endif
 
 #define ofxSA_Canvas_AllowedBorder 20.f
 
@@ -37,6 +41,9 @@ class ofxSimpleAppCanvas {
     public:
         ofxSimpleAppCanvas(unsigned int _width=ofGetWidth(), unsigned int _height=ofGetHeight());
 
+        void setup(){
+
+        };
         void setCanvasSize(unsigned int _width, unsigned int _height, float _scale=1.f);
 
         // (Unscaled)
@@ -71,6 +78,14 @@ class ofxSimpleAppCanvas {
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 		bool populateXmlNode(pugi::xml_node& _node);
 		bool retrieveXmlNode(pugi::xml_node& _node);
+#endif
+
+#if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1 // todo: move this out of canvas space ?
+        void drawSecondaryMonitor(ofEventArgs & args);
+        void setupSecondaryMonitor(std::shared_ptr<ofAppGLFWWindow> sharedGlfwWindow);
+        void onSecondaryWindowClose(ofEventArgs& args);
+        bool bRenderExtraCanvasWindow = false;
+        std::shared_ptr<ofAppGLFWWindow> extraCanvasOutputWindowPtr;
 #endif
 
     private:

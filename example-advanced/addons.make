@@ -8,3 +8,4 @@ ofxNDI
 ofxImGuiAddonWidgets
 ofxPugiXML
 ofxPlayHead
+ofxGLWarper

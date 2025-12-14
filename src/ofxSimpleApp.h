@@ -21,7 +21,7 @@
 #endif
 
 #ifdef ofxSA_TIMELINE_ENABLE
-#include "ofxSimpleAppTimeline.h"
+#include "ofxPlayhead.h"
 #endif
 
 #ifdef ofxSA_TEXRECORDER_ENABLE
@@ -35,6 +35,10 @@
 
 #if defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE)
 #include "ofFpsCounter.h"
+#endif
+
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+#	include "ofxGLWarper.h"
 #endif
 
 #ifdef TARGET_OSX
@@ -58,6 +62,10 @@
 class ofxSimpleApp : public ofBaseApp {
 
 	public:
+		// note: authorises private member access to canvas
+		template<class ofAppClass>
+		friend int ofxSimpleAppGenericMain();
+
 		ofxSimpleApp();
 		~ofxSimpleApp() override;
 		void setup() override;
@@ -155,16 +163,26 @@ protected:
 //		std::string getAppStateName(const AppState& _appState, std::string _notFoundString = "404" ) const;
 
 		// Logging
-		bool bShowLogs = bShowLogs = false;
+		bool bShowLogs = false;
 		std::shared_ptr<ofxImGui::LoggerChannel> logChannel;
 		static std::pair<ofLogLevel, std::string> ofLogLevels[];
+
+		// Frame flagger
+#if ofxSA_NEWFRAME_FLAGGER == 1
+		bool bNewFrame = true;
+		inline void flagNewFrame(){ bNewFrame|=true; }; // to be called from drawScene() when new content has been drawn
+		bool isNewFrame() const { return bNewFrame;}
+#	if defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE) || defined(ofxSA_NDI_SENDER_ENABLE)
+		bool bRecordersOnlyPublishNewFrames = true;
+#	endif
+#endif
 
 		// Syphon
 #ifdef ofxSA_SYPHON_OUTPUT
 		ofxSyphonServer syphonServer;
 		bool bEnableSyphonOutput = false;
 		ofFpsCounter syphonFps;
-		virtual void publishSyphonTexture();
+		virtual void publishSyphonTexture(); // todo: add force-re-publish arg ?
 #endif
 
 		// Output canvas
@@ -181,7 +199,7 @@ protected:
 #ifdef ofxSA_TIMELINE_ENABLE
 	protected:
 #	if !ofxSA_TIMELINE_SINGLETON
-		ofxSATimeline timeline;
+		ofxPlayhead timeline;
 #	endif
 		bool bShowTimeClockWindow = true;
 		virtual void ImGuiDrawTimeline();
@@ -219,7 +237,7 @@ protected:
 		int recordFrameRange[2] = {-1, -1};
 		bool bRecorderStopOnLoop = true;
 
-		bool onTimelineRestart(std::size_t& _loopCount);
+		bool onTimelineRestart(const std::size_t& _loopCount);
 		bool onTimelineStop();
 #	else
 		float recordStartSeconds = -1.f;
@@ -232,6 +250,12 @@ protected:
 		ofxNDIsender ndiSender;
 		bool startNdi();
 		void stopNdi();
+#endif
+
+		// Quad wrapping
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+		ofxGLWarper quadWarper;
+		bool bEnableQuadWarper = false;
 #endif
 
 #ifdef ofxSA_BACKGROUND_CLEARING

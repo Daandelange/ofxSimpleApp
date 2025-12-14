@@ -31,6 +31,7 @@ Project{
             'ofxPugiXML',
             'ofxImGuiAddonWidgets',
             'ofxPlayHead',
+            'ofxGLWarper',
         ]
 
         // additional flags for the project. the of module sets some
