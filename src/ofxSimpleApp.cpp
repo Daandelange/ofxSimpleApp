@@ -766,7 +766,10 @@ void ofxSimpleApp::renderGui(){
 
         // Force metrics at the end of ImGui submissions
         if(bShowImGuiDemo)          ImGui::ShowDemoWindow(&bShowImGuiDemo);
-        if(bShowImGuiDebugLog)   ImGui::ShowDebugLogWindow(&bShowImGuiDebugLog);
+        if(bShowImGuiDebugLog)      ImGui::ShowDebugLogWindow(&bShowImGuiDebugLog);
+#ifdef OFXIMGUI_DEBUG // only available with debug!
+        if(bShowofxImGuiDebugWindow)gui.drawOfxImGuiDebugWindow(&bShowofxImGuiDebugWindow);
+#endif
         if(bShowImGuiMetrics)       ImGui::ShowMetricsWindow(&bShowImGuiMetrics);
 
         gui.end();
@@ -1584,6 +1587,9 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
                 ImGui::Checkbox("Show ImGui Debug Window", &bShowImGuiDebugLog);
                 ImGui::Checkbox("Show ImGui Demo Window", &bShowImGuiDemo);
+    #ifdef OFXIMGUI_DEBUG
+                ImGui::Checkbox("Show ofxImGui Debug Window", &bShowofxImGuiDebugWindow);
+    #endif
 #endif
                 ImGui::EndMenu();
             }

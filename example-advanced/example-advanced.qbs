@@ -45,6 +45,7 @@ Project{
         of.defines: [
             'ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig',
             'ofxAddons_ENABLE_IMGUI',
+            'OFXIMGUI_DEBUG',
         ]          // defines are passed as -D to the compiler
                                 // and can be checked with #ifdef or #if in the code
         of.frameworks: []       // osx only, additional frameworks to link with the project

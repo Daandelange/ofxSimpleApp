@@ -37,11 +37,11 @@ class UnrealTheme : public ofxImGui::BaseTheme {
         style.GrabRounding = 0.0;
         style.TabRounding = 4.0;
         style.TabBorderSize = 0.0;
-        #if IMGUI_VERSION_NUM < 19190 // be nice with old imgui versions
+#if IMGUI_VERSION_NUM < 19190 // be nice with old imgui versions
         style.TabMinWidthForCloseButton = 0.0;
-        #else
+#else
         style.TabCloseButtonMinWidthUnselected = 0.0;
-        #endif
+#endif
         style.ColorButtonPosition = ImGuiDir_Right;
         style.ButtonTextAlign = ImVec2(0.5, 0.5);
         style.SelectableTextAlign = ImVec2(0.0, 0.0);
@@ -81,9 +81,15 @@ class UnrealTheme : public ofxImGui::BaseTheme {
         style.Colors[ImGuiCol_ResizeGripActive] = ImVec4(117/255.f, 117/255.f, 117/255.f, 0.949999988079071);
         style.Colors[ImGuiCol_Tab] = ImVec4(45/255.f, 89/255.f, 147/255.f, 0.8619999885559082);
         style.Colors[ImGuiCol_TabHovered] = ImVec4(66/255.f, 150/255.f, 249/255.f, 0.800000011920929);
+#if IMGUI_VERSION_NUM < 19140 // be nice with old imgui versions
         style.Colors[ImGuiCol_TabActive] = ImVec4(50/255.f, 104/255.f, 173/255.f, 1.0);
         style.Colors[ImGuiCol_TabUnfocused] = ImVec4(17/255.f, 26/255.f, 37/255.f, 0.9724000096321106);
         style.Colors[ImGuiCol_TabUnfocusedActive] = ImVec4(34/255.f, 66/255.f, 108/255.f, 1.0);
+#else
+        style.Colors[ImGuiCol_TabSelected] = ImVec4(50/255.f, 104/255.f, 173/255.f, 1.0);
+        style.Colors[ImGuiCol_TabDimmed] = ImVec4(17/255.f, 26/255.f, 37/255.f, 0.9724000096321106);
+        style.Colors[ImGuiCol_TabDimmedSelected] = ImVec4(34/255.f, 66/255.f, 108/255.f, 1.0);
+#endif
         style.Colors[ImGuiCol_PlotLines] = ImVec4(155/255.f, 155/255.f, 155/255.f, 1.0);
         style.Colors[ImGuiCol_PlotLinesHovered] = ImVec4(255/255.f, 109/255.f, 89/255.f, 1.0);
         style.Colors[ImGuiCol_PlotHistogram] = ImVec4(186/255.f, 153/255.f, 38/255.f, 1.0);
@@ -95,7 +101,11 @@ class UnrealTheme : public ofxImGui::BaseTheme {
         style.Colors[ImGuiCol_TableRowBgAlt] = ImVec4(255/255.f, 255/255.f, 255/255.f, 0.05999999865889549);
         style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(221/255.f, 221/255.f, 221/255.f, 0.3499999940395355);
         style.Colors[ImGuiCol_DragDropTarget] = ImVec4(255/255.f, 255/255.f, 0/255.f, 0.8999999761581421);
+#if IMGUI_VERSION_NUM < 19140 // be nice with old imgui versions
         style.Colors[ImGuiCol_NavHighlight] = ImVec4(153/255.f, 153/255.f, 153/255.f, 1.0);
+#else
+        style.Colors[ImGuiCol_NavCursor] = ImVec4(153/255.f, 153/255.f, 153/255.f, 1.0);
+#endif
         style.Colors[ImGuiCol_NavWindowingHighlight] = ImVec4(255/255.f, 255/255.f, 255/255.f, 0.699999988079071);
         style.Colors[ImGuiCol_NavWindowingDimBg] = ImVec4(204/255.f, 204/255.f, 204/255.f, 0.2000000029802322);
         style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(204/255.f, 204/255.f, 204/255.f, 0.3499999940395355);

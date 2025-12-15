@@ -106,6 +106,9 @@ protected:
 		bool bDebugGlobal = false;
 		bool bShowImGuiMetrics = false;
 		bool bShowImGuiDemo = false;
+#ifdef OFXIMGUI_DEBUG
+		bool bShowofxImGuiDebugWindow = false;
+#endif
         bool bShowImGuiDebugLog = false;
 		float FPSHistory[ofxSA_FPS_HISTORY_SIZE];
 		static const int curYear;

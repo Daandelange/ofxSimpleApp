@@ -24,6 +24,8 @@ we need to have them defined at here at compile time.
 #endif
 
 #include "BaseTheme.h"
+#include "imgui.h"
+
 //#include "imgui_internal.h"
 // from imgui_internals.h
 static inline ImVec4 ImLerp_spec(const ImVec4& a, const ImVec4& b, float t)          { return ImVec4(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, a.w + (b.w - a.w) * t); }
@@ -273,7 +275,11 @@ class Spectrum : public ofxImGui::BaseTheme {
         style.Colors[ImGuiCol_PlotHistogramHovered] = ColorConvertU32ToFloat4(BLUE600);
         style.Colors[ImGuiCol_TextSelectedBg] = ColorConvertU32ToFloat4((BLUE400 & 0x00FFFFFF) | 0x33000000);
         style.Colors[ImGuiCol_DragDropTarget] = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
+#if IMGUI_VERSION_NUM < 19140
         style.Colors[ImGuiCol_NavHighlight] = ColorConvertU32ToFloat4((GRAY900 & 0x00FFFFFF) | 0x0A000000);
+#else
+        style.Colors[ImGuiCol_NavCursor] = ColorConvertU32ToFloat4((GRAY900 & 0x00FFFFFF) | 0x0A000000);
+#endif
         style.Colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
         style.Colors[ImGuiCol_NavWindowingDimBg] = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
         style.Colors[ImGuiCol_ModalWindowDimBg] = ImVec4(0.20f, 0.20f, 0.20f, 0.35f);
