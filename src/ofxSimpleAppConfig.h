@@ -10,11 +10,19 @@
 // Always load user config first, then write defaults.
 // Usage : define ofxSA_CONFIG_HEADER_FILE in your build system to load a file named "ofxSAUserConfig.h", or define it with a value to use a custom file name : #define ofxSA_CONFIG_HEADER_FILE=myfilename (.h is added automatically)
 // No special characters are allowed in the file name, including dashes and periods.
-// #define ofxSA_CONFIG_HEADER_FILE ofxSAUserConfig
+// #define ofxSA_CONFIG_HEADER_FILE ofxSAUserConfig --> will load `ofxSAUserConfig.h`
+// IMPORTANT: This seems only to be working on Qt Creator which seems to provide project-wide inclusions while others seem to scope them per addon.
+// More info & Discussions : https://forum.openframeworks.cc/t/conditional-compiles-for-addons/1209/11
 #ifdef ofxSA_CONFIG_HEADER_FILE
-    // Todo: rather use #if __has_include("ofxSAUserConfig.h")
+    // Use c++ 17 features ?
+#   if (__cplusplus >= 201703L) && __has_include( ofxSA_VAR_TO_INCLUDE_HEADER(ofxSA_CONFIG_HEADER_FILE) ) // ofxSA_CONFIG_HEADER_FILE ".h")
+#       pragma message "ofxSA : Loading & sanitising custom config file `ofxSA_CONFIG_HEADER_FILE` !"
+#       include ofxSA_VAR_TO_INCLUDE_HEADER(ofxSA_CONFIG_HEADER_FILE)
+#   elif (__cplusplus >= 201703L) && __has_include("ofxSAUserConfig.h")
+#       pragma message "ofxSA : Loading & sanitising custom config file `ofxSAUserConfig.h` !"
+#       include "ofxSAUserConfig.h"
     // String empty ? --> Use default file name filename
-#   if (ofxSA_APPENDONE_I(ofxSA_CONFIG_HEADER_FILE) == 1)
+#   elif (ofxSA_APPENDONE_I(ofxSA_CONFIG_HEADER_FILE) == 1)
 #       pragma message "ofxSA : Loading & sanitising custom config file !"
 #       include "ofxSAUserConfig.h"
 #   else
