@@ -6,7 +6,9 @@ It aims to get you started quickly for both drafts and performance applications.
 It focusses on minimising the workflow for advanced use-cases, using simplicity where possible when it doesn't restrict the user.  
 It is my personal ofApp base class that I use across many projects, I hope it's useful for you too. **WIP**.  
 
-Demo: [Video of an ofxSimpleApp](https://www.youtube.com/watch?v=bCTa-FaU3ds&t=180).
+**Demo :**  
+![ofxSimpleApp Minimal Demo](ofxSimpleApp.gif)  
+[Video of an ofxSimpleApp](https://www.youtube.com/watch?v=bCTa-FaU3ds&t=180)
 
 # Features
 
