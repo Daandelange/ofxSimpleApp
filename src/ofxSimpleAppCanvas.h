@@ -35,7 +35,21 @@ struct ContentResizeArgs : public ofEventArgs {
     ContentResizeArgs(unsigned int _width, unsigned int _height, float _scale);
 };
 
+enum GlSampleMode_ : GLint {
+    GlSampleMode_NearestNeighbour   = GL_NEAREST,   // Closest matching
+    GlSampleMode_Linear             = GL_LINEAR,    // Weighted average between 4 pixels
+};
+extern const std::pair<GlSampleMode_, const char*> glSampleModes[2];
+const char* glSampleModeGetName(GlSampleMode_ _mode );
 
+enum GlTexRepeatMode_ : GLint {
+    GlTexRepeatMode_Repeat         = GL_REPEAT,          // Tile
+    GlTexRepeatMode_RepeatMirrored = GL_MIRRORED_REPEAT, // Mirrored
+    GlTexRepeatMode_ClampEdge      = GL_CLAMP_TO_EDGE,   // Edge color
+    GlTexRepeatMode_BorderColor    = GL_CLAMP_TO_BORDER, // Black
+};
+extern const std::pair<GlTexRepeatMode_, const char*> glTexRepeatModes[4];
+const char* glTexRepeatModeGetName(GlTexRepeatMode_ _mode );
 
 class ofxSimpleAppCanvas {
     public:
@@ -72,8 +86,11 @@ class ofxSimpleAppCanvas {
         void drawGuiViewportHUD();
 
         bool bDrawViewportOutline = false;
-        bool bDrawContentOutline = true;
+        bool bDrawContentOutline = false;
         CanvasDrawMode contentDrawMode = CanvasDrawMode_Manual;
+        GlSampleMode_ texSampleMode = GlSampleMode_Linear;
+        GlTexRepeatMode_ texRepeatMode = GlTexRepeatMode_BorderColor;
+
 
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 		bool populateXmlNode(pugi::xml_node& _node);
@@ -83,8 +100,9 @@ class ofxSimpleAppCanvas {
 #if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1 // todo: move this out of canvas space ?
         void drawSecondaryMonitor(ofEventArgs & args);
         void setupSecondaryMonitor(std::shared_ptr<ofAppGLFWWindow> sharedGlfwWindow);
+        void closeSecondaryWindow();
         void onSecondaryWindowClose(ofEventArgs& args);
-        bool bRenderExtraCanvasWindow = false;
+        bool bRenderExtraCanvasWindow = true;
         std::shared_ptr<ofAppGLFWWindow> extraCanvasOutputWindowPtr;
 #endif
 
@@ -94,9 +112,8 @@ class ofxSimpleAppCanvas {
         float scale = 1.f; // Antialiasing control
         bool bFlagDirty = false;
         bool bFlagRepaint = false;
-        ofFloatColor vieportBgColor = ofColor(0,0,0,255);
-        bool bDrawViewportCheckerboard = true;
-
+        ofFloatColor viewportBgColor = ofColor(0,0,0,255);
+        bool bDrawViewportCheckerboard = false; // default off due to heavy GPU usage
 
         // Viewzone controls
         float viewZoom = 1.f;

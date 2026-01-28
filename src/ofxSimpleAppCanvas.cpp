@@ -1,5 +1,73 @@
 #include "ofxSimpleAppCanvas.h"
 #include "glfw3.h"
+#include "ofxPugiXMLHelpers.h"
+
+template<typename TYPE, int SIZE>
+const char* getItemFromPairArray(TYPE _mode, const std::pair<TYPE, const char*>(&map)[SIZE] ) {
+    for(const auto& mode : map){
+        if(mode.first==_mode) return mode.second;
+    }
+    return "unknown";
+}
+
+const std::pair<GlSampleMode_, const char*> glSampleModes[2] = {
+    { GlSampleMode_Linear,          "Linear" },
+    { GlSampleMode_NearestNeighbour,"Nearest" },
+};
+
+const char* glSampleModeGetName(GlSampleMode_ _mode ) {
+    return getItemFromPairArray(_mode, glSampleModes);
+    for(const auto& mode : glSampleModes){
+        if(mode.first==_mode) return mode.second;
+    }
+    return "unknown";
+    //switch(_mode){
+    //    case GlSampleMode_Linear:
+    //        return "Linear";
+    //        break;
+    //    case GlSampleMode_NearestNeighbour:
+    //        return "Nearest";
+    //        break;
+    //}
+}
+const std::pair<GlTexRepeatMode_, const char*> glTexRepeatModes[4] = {
+    { GlTexRepeatMode_Repeat,           "Tile" },
+    { GlTexRepeatMode_RepeatMirrored,   "Mirrored" },
+    { GlTexRepeatMode_ClampEdge,        "Edge" },
+    { GlTexRepeatMode_BorderColor,      "Static" },
+};
+
+const char* glTexRepeatModeGetName(GlTexRepeatMode_ _mode ) {
+    return getItemFromPairArray(_mode, glTexRepeatModes);
+    for(const auto& mode : glTexRepeatModes){
+        if(mode.first==_mode) return mode.second;
+    }
+    return "unknown";
+}
+
+namespace ImGuiEx {
+    void glSampleModeImGuiCombo(const char* label, GlSampleMode_& value){
+        if( ImGui::BeginCombo(label, glSampleModeGetName(value)) ){
+            for(const auto& mode : glSampleModes){
+                if(ImGui::Selectable(mode.second, value == mode.first ) ){
+                    value = mode.first;
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    void glTexRepeatModeImGuiCombo(const char* label, GlTexRepeatMode_& value){
+        if( ImGui::BeginCombo(label, glTexRepeatModeGetName(value)) ){
+            for(const auto& mode : glTexRepeatModes){
+                if(ImGui::Selectable(mode.second, value == mode.first ) ){
+                    value = mode.first;
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+}
 
 ContentResizeArgs::ContentResizeArgs(unsigned int _width, unsigned int _height, float _scale) :
     width(_width),
@@ -40,6 +108,13 @@ void ofxSimpleAppCanvas::drawSecondaryMonitor(ofEventArgs &args){
     }
 
 }
+void ofxSimpleAppCanvas::closeSecondaryWindow(){
+    if(extraCanvasOutputWindowPtr){
+        extraCanvasOutputWindowPtr->setWindowShouldClose();
+        extraCanvasOutputWindowPtr = nullptr;
+    }
+}
+
 void ofxSimpleAppCanvas::setupSecondaryMonitor(std::shared_ptr<ofAppGLFWWindow> sharedGlfwWindow){
     if(!sharedGlfwWindow || !sharedGlfwWindow->getGLFWWindow()){
         ofLogError("ofxSimpleAppCanvas::setupSecondaryMonitor") << "The window is not correctly setup and cannot be used !";
@@ -82,7 +157,9 @@ void ofxSimpleAppCanvas::setupSecondaryMonitor(std::shared_ptr<ofAppGLFWWindow> 
     // Note: Reset of to main window, if events register against ofGetCurrentWindow()
     if(sharedGlfwWindow) ofGetMainLoop()->setCurrentWindow(sharedGlfwWindow);
 #   endif
+#   ifdef ofxSA_DEBUG
     std::cout << "Created 2ndary window ! @" << extraCanvasOutputWindowPtr->getGLFWWindow() << "/sharedContext=" << outputWinSettings.shareContextWith << extraCanvasOutputWindowPtr->getWidth() << "x" << extraCanvasOutputWindowPtr->getHeight() << std::endl;
+#   endif
 
     if(extraCanvasOutputWindowPtr){
         ofAddListener(extraCanvasOutputWindowPtr->events().exit, this, &ofxSimpleAppCanvas::onSecondaryWindowClose);
@@ -214,8 +291,8 @@ ofRectangle ofxSimpleAppCanvas::getContentProjection() const {
 void ofxSimpleAppCanvas::draw(){
     ofPushStyle();
     if(fbo.isAllocated()){
-        ofFill();
-        ofSetColor(ofColor::white);
+        //ofFill();
+        //ofSetColor(ofColor::white);
         //fbo.draw(0,0);//viewportRect.x, viewportRect.y, viewportRect.width, viewportRect.height);
 
         ofRectangle cvp = getViewportRect();
@@ -223,13 +300,14 @@ void ofxSimpleAppCanvas::draw(){
 
         // BG Color
         ofFill();
-        ofSetColor(vieportBgColor);
+        ofSetColor(viewportBgColor);
         ofDrawRectangle(cvp);
 
         // Checkerboard
+        // Fixme: very heavy on the GPU, implement this with a pixelshader ? Or a static image ?
         if(bDrawViewportCheckerboard){
-            float diff = (vieportBgColor.getLightness()>0.5) ? -.2 : .2;
-            const ofFloatColor checkerColor = {vieportBgColor.r+diff, vieportBgColor.g+diff, vieportBgColor.b+diff, vieportBgColor.a};
+            float diff = (viewportBgColor.getLightness()>0.5) ? -.2 : .2;
+            const ofFloatColor checkerColor = {viewportBgColor.r+diff, viewportBgColor.g+diff, viewportBgColor.b+diff, viewportBgColor.a};
             ofSetColor(checkerColor);
             // Every 10 px with zoom
             const float scale = 10.0;
@@ -247,6 +325,8 @@ void ofxSimpleAppCanvas::draw(){
         // Draw the canvas
         ofFill();
         ofSetColor(ofColor::white);
+        fbo.getTexture(0).setTextureWrap(texRepeatMode, texRepeatMode);
+        fbo.getTexture(0).setTextureMinMagFilter(texSampleMode, texSampleMode);
         fbo.getTexture(0).drawSubsection(cvp.x, cvp.y, cvp.width, cvp.height, ctextureArea.x, ctextureArea.y, ctextureArea.width, ctextureArea.height);
     }
     if(bDrawViewportOutline){
@@ -301,8 +381,14 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
         ImGui::BulletText("Ratio=%.2f", viewportRect.width/viewportRect.height);
         ImGui::Checkbox("Highlight viewport", &bDrawViewportOutline);
         ImGui::Checkbox("Outline content borders", &bDrawContentOutline);
-        ImGui::ColorEdit4("Viewport background", &vieportBgColor[0]);
+        ImGui::ColorEdit4("Viewport background", &viewportBgColor[0]);
         ImGui::Checkbox("Checkerboard as viewport bg", &bDrawViewportCheckerboard);
+
+        ImGui::Dummy({ofxSA_UI_MARGIN,ofxSA_UI_MARGIN});
+        ImGui::SeparatorText("Rendering");
+        ImGuiEx::glSampleModeImGuiCombo("Sampling", texSampleMode);
+        ImGuiEx::glTexRepeatModeImGuiCombo("Repeat", texRepeatMode);
+        ImGui::Checkbox("Flip FBO texture", &fbo.getTexture().getTextureData().bFlipTexture);
         ImGui::TreePop();
     }
 #if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1
@@ -368,7 +454,7 @@ void ofxSimpleAppCanvas::drawGuiSettings(){
 
             if(ImGui::Button("Close window")){
                 extraCanvasOutputWindowPtr->setWindowShouldClose();
-                extraCanvasOutputWindowPtr = nullptr;
+                extraCanvasOutputWindowPtr = nullptr; // triggers shared_ptr destroy ?
             }
         }
         else {
@@ -464,6 +550,27 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
             }
             ImGui::SameLine();
             ImGui::DragFloat("Zoom##canvas", &viewZoom, 0.001f, 0, 10);
+            if(ImGui::IsItemClicked(ImGuiMouseButton_Right)){
+                ImGui::OpenPopup("canvas-zoom-popup");
+            }
+            if(ImGui::BeginPopup("canvas-zoom-popup")){
+                ImGui::SeparatorText("Zoom");
+                if(ImGui::MenuItem("Set to contain")){
+
+                }
+                if(ImGui::MenuItem("Set to cover")){
+
+                }
+                if(ImGui::MenuItem("Set to 100%")){
+
+                }
+
+                ImGui::Dummy({ofxSA_UI_MARGIN,ofxSA_UI_MARGIN});
+                ImGui::SeparatorText("Rendering");
+                ImGuiEx::glSampleModeImGuiCombo("Sampling", texSampleMode);
+                ImGuiEx::glTexRepeatModeImGuiCombo("Repeat", texRepeatMode);
+                ImGui::EndPopup();
+            }
 
             ImGui::SameLine();
             ImGui::Spacing();
@@ -473,14 +580,14 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
         ImGui::Button("[+]##canvasview");
         if(ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left)){
             ImVec2 delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Left);
-            viewTranslation.x += delta.x;
-            viewTranslation.y += delta.y;
+            viewTranslation.x += delta.x*.1f;
+            viewTranslation.y += delta.y*.1f;
         }
         else if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary)){
             if(ImGui::BeginTooltip()){
                 ImGui::Text("(drag to translate)");
+                ImGui::EndTooltip();
             }
-            ImGui::EndTooltip();
         }
         ImGui::SameLine();
         ImGui::DragFloat("X##canvasviewT", &viewTranslation.x, 1.f, -5000, +5000,"%.0f");
@@ -507,34 +614,201 @@ void ofxSimpleAppCanvas::drawGuiViewportHUD(){
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
 // Load + Save
 bool ofxSimpleAppCanvas::populateXmlNode(pugi::xml_node &_node){
-    //pugi::xml_node shapesNode = _node.append_child("shapes");
+    bool ret = true;
 
     // Resolution
-    _node.append_child("width").text().set(width);
-    _node.append_child("height").text().set(height);
-    _node.append_child("scale").text().set(scale);
+    //_node.append_child("width").text().set(width);
+    //_node.append_child("height").text().set(height);
+    //_node.append_child("scale").text().set(scale);
+
+    // Resolution
+    pugi::xml_node resolutionNode = ofxPugiXml::getOrAppendNode(_node, "resolution");
+    ret *= (bool) resolutionNode;
+    if(resolutionNode){
+        ret *= ofxPugiXml::setNodeAttribute(resolutionNode, "width", width);
+        ret *= ofxPugiXml::setNodeAttribute(resolutionNode, "height", height);
+        ret *= ofxPugiXml::setNodeAttribute(resolutionNode, "scale", scale);
+    }
 
     // View
-    _node.append_child("viewmode").text().set(contentDrawMode);
+    pugi::xml_node viewNode = ofxPugiXml::getOrAppendNode(_node, "view");
+    ret *= (bool) viewNode;
+    if(viewNode){
+        pugi::xml_node zoomNode = ofxPugiXml::getOrAppendNode(viewNode, "zoom");
+        ret *= (bool) zoomNode;
+        if(zoomNode){
+            ret *= ofxPugiXml::setNodeAttribute<int>(zoomNode, "mode", (int&)contentDrawMode);
+            ret *= ofxPugiXml::setNodeAttribute(zoomNode, "scale", viewZoom);
+            ret *= ofxPugiXml::setNodeAttribute(zoomNode, "translation", viewTranslation);
+        }
+
+        pugi::xml_node bgNode = ofxPugiXml::getOrAppendNode(viewNode, "background");
+        ret *= (bool) bgNode;
+        if(bgNode){
+            ret *= ofxPugiXml::setNodeAttribute(bgNode, "checkerboard", bDrawViewportCheckerboard);
+            ret *= ofxPugiXml::setNodeAttribute(bgNode, "color", viewportBgColor);
+        }
+
+        pugi::xml_node renderingNode = ofxPugiXml::getOrAppendNode(viewNode, "rendering");
+        ret *= (bool) renderingNode;
+        if(renderingNode){
+            ret *= ofxPugiXml::setNodeAttribute<int>(renderingNode, "repeat", texRepeatMode);
+            ret *= ofxPugiXml::setNodeAttribute<int>(renderingNode, "sampling", texSampleMode);
+            ret *= ofxPugiXml::setNodeAttribute<int>(renderingNode, "flip-texture", fbo.getTexture().getTextureData().bFlipTexture);
+        }
+
+        pugi::xml_node drawNode = ofxPugiXml::getOrAppendNode(viewNode, "draw");
+        ret *= (bool) drawNode;
+        if(drawNode){
+            ret *= ofxPugiXml::setNodeAttribute(drawNode, "content-outline", bDrawContentOutline);
+            ret *= ofxPugiXml::setNodeAttribute(drawNode, "viewport-outline", bDrawViewportOutline);
+        }
+
+    }
+
+    // Output window
+#if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1
+    pugi::xml_node windowNode = ofxPugiXml::getOrAppendNode(_node, "output-window");
+    ret *= (bool) windowNode;
+
+    if(windowNode){
+        bool bWindowEnabled = extraCanvasOutputWindowPtr != nullptr && extraCanvasOutputWindowPtr->getGLFWWindow() != nullptr;
+        ofxPugiXml::setNodeAttribute(windowNode, "enabled", bWindowEnabled);
+        ret *= ofxPugiXml::setNodeAttribute(windowNode, "enable-draw", bRenderExtraCanvasWindow);
+
+        if(bWindowEnabled){
+            ret *= ofxPugiXml::setNodeAttribute(windowNode, "width", extraCanvasOutputWindowPtr->getWidth());
+            ret *= ofxPugiXml::setNodeAttribute(windowNode, "height", extraCanvasOutputWindowPtr->getHeight());
+            ret *= ofxPugiXml::setNodeAttribute(windowNode, "fullscreen", extraCanvasOutputWindowPtr->getWindowMode() == ofWindowMode::OF_FULLSCREEN);
+        }
+    }
+#endif
 
     return true;
 }
 
 bool ofxSimpleAppCanvas::retrieveXmlNode(pugi::xml_node &_node){
-    pugi::xml_node wNode = _node.child("width");
-    pugi::xml_node hNode = _node.child("height");
-    pugi::xml_node sNode = _node.child("scale");
-    pugi::xml_node vmNode = _node.child("viewmode");
+    //pugi::xml_node wNode = _node.child("width");
+    //pugi::xml_node hNode = _node.child("height");
+    //pugi::xml_node sNode = _node.child("scale");
+    //pugi::xml_node vmNode = _node.child("viewmode");
 
-    if(wNode && hNode && sNode){
-        setCanvasSize(
-            wNode.text().as_uint(),
-            hNode.text().as_uint(),
-            sNode.text().as_float()
-        );
-        contentDrawMode = (CanvasDrawMode) vmNode.text().as_int();
-        return true;
+    //if(wNode && hNode && sNode){
+    //    setCanvasSize(
+    //        wNode.text().as_uint(),
+    //        hNode.text().as_uint(),
+    //        sNode.text().as_float()
+    //    );
+    //    contentDrawMode = vmNode ? ((CanvasDrawMode) vmNode.text().as_int()) : CanvasDrawMode_Manual;
+    //    //std::cout << "Retrieved canvas size ! w="<< width << std::endl;
+    //    return true;
+    //}
+    //return false;
+
+    bool ret = true;
+
+    // Resolution
+    pugi::xml_node resolutionNode = _node.child("resolution");
+    ret *= (bool) resolutionNode;
+    if(resolutionNode){
+        ret *= ofxPugiXml::getNodeAttributeValue(resolutionNode, "width", width, (unsigned int) ofGetWidth());
+        ret *= ofxPugiXml::getNodeAttributeValue(resolutionNode, "height", height, (unsigned int) ofGetHeight());
+        ret *= ofxPugiXml::getNodeAttributeValue(resolutionNode, "scale", scale, 1.f);
+        setCanvasSize(width, height, scale);
     }
-    return false;
+
+    // View
+    pugi::xml_node viewNode = _node.child("view");
+    ret *= (bool) viewNode;
+    if(viewNode){
+        pugi::xml_node zoomNode = viewNode.child("zoom");
+        ret *= (bool) zoomNode;
+        if(viewNode){
+            ret *= ofxPugiXml::getNodeAttributeValue<int>(zoomNode, "mode", (int&)contentDrawMode, (int)CanvasDrawMode_Manual);
+            ret *= ofxPugiXml::getNodeAttributeValue(zoomNode, "scale", viewZoom, 1.f);
+            ret *= ofxPugiXml::getNodeAttributeValue(zoomNode, "translation", viewTranslation, glm::vec2(0,0));
+        }
+
+        pugi::xml_node bgNode = viewNode.child("background");
+        ret *= (bool) bgNode;
+        if(viewNode){
+            ret *= ofxPugiXml::getNodeAttributeValue(bgNode, "checkerboard", bDrawViewportCheckerboard, false);
+            ret *= ofxPugiXml::getNodeAttributeValue(bgNode, "color", viewportBgColor, ofFloatColor::black);
+        }
+
+        pugi::xml_node renderingNode = viewNode.child("rendering");
+        ret *= (bool) renderingNode;
+        if(renderingNode){
+            ret *= ofxPugiXml::getNodeAttributeValue<int>(renderingNode, "repeat", (int&)texRepeatMode, (int)GlTexRepeatMode_BorderColor);
+            ret *= ofxPugiXml::getNodeAttributeValue<int>(renderingNode, "sampling", (int&)texSampleMode, (int)GlSampleMode_Linear);
+            ret *= ofxPugiXml::getNodeAttributeValue(renderingNode, "flip-texture", fbo.getTexture().getTextureData().bFlipTexture, false);
+        }
+
+        pugi::xml_node drawNode = viewNode.child("draw");
+        ret *= (bool) drawNode;
+        if(drawNode){
+            ret *= ofxPugiXml::getNodeAttributeValue(drawNode, "content-outline", bDrawContentOutline, false);
+            ret *= ofxPugiXml::getNodeAttributeValue(drawNode, "viewport-outline", bDrawViewportOutline, false);
+        }
+    }
+
+    // Output window
+#if ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW == 1
+    pugi::xml_node windowNode = _node.child("output-window");
+    ret *= (bool) windowNode;
+    if(windowNode){
+        bool bWindowEnabled = false;
+        ofxPugiXml::getNodeAttributeValue(windowNode, "enabled", bWindowEnabled, false);
+        ret *= ofxPugiXml::getNodeAttributeValue(windowNode, "enable-draw", bRenderExtraCanvasWindow, true);
+
+        if(bWindowEnabled){
+            // Ensure window is there
+            if(!extraCanvasOutputWindowPtr || !extraCanvasOutputWindowPtr->getGLFWWindow()){
+                if(auto cur = ofGetCurrentWindow()){
+                    if(auto curGlfw = std::static_pointer_cast<ofAppGLFWWindow>(cur)){
+                        setupSecondaryMonitor(curGlfw);
+                    }
+                }
+            }
+            int width = 0;
+            int height = 0;
+            bool fs = false;
+
+            ret *= ofxPugiXml::getNodeAttributeValue(windowNode, "width", width);
+            ret *= ofxPugiXml::getNodeAttributeValue(windowNode, "height", height);
+            ret *= ofxPugiXml::getNodeAttributeValue(windowNode, "fullscreen", fs);
+
+            if(extraCanvasOutputWindowPtr){
+                if(fs){
+                    if(extraCanvasOutputWindowPtr->getWindowMode() != ofWindowMode::OF_FULLSCREEN){
+                        extraCanvasOutputWindowPtr->setFullscreen(true);
+                    }
+                }
+                else if(width!=0 && height !=0){
+                    if(extraCanvasOutputWindowPtr->getWindowMode() != ofWindowMode::OF_WINDOW){
+                        extraCanvasOutputWindowPtr->setWindowShape(width, height);
+                    }
+                }
+                // Wrong data combination
+                else {
+                    ofLogNotice("ofxSimpleAppCanvas::retrieveXmlNode") << "Could not restore 2ndary window : Illegal window configuration.";
+                    ret *= false;
+                }
+            }
+            else {
+                ofLogNotice("ofxSimpleAppCanvas::retrieveXmlNode") << "Could not restore 2ndary window : Wailed creating it !";
+            }
+        }
+        else {
+            // Ensure to disable it ?
+            if(extraCanvasOutputWindowPtr){
+                closeSecondaryWindow();
+            }
+        }
+    }
+#endif
+
+    return true;
 }
 #endif
+

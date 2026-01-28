@@ -99,6 +99,15 @@ namespace ImGuiEx {
         ImGui::EndTooltip();
     }
 
+    void ShowHelpTooltip(const char* text){
+        if(ImGui::IsItemHovered(ImGuiHoveredFlags_Stationary)){
+            if(ImGui::BeginTooltip()){
+                ImGui::Text("%s", text);
+                ImGui::EndTooltip();
+            }
+        }
+    }
+
     bool ButtonActive(const char* id, bool isActive){
         if(isActive){
             ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_TabSelected));
@@ -120,6 +129,9 @@ namespace ImGuiEx {
         // Notify of viewport change so GetFrameHeight() can be accurate in case of DPI change
         ImGui::SetCurrentViewport(NULL, viewport);
 
+        // For the main menu bar, which cannot be moved, we honor g.Style.DisplaySafeAreaPadding to ensure text can be visible on a TV set.
+        // FIXME: This could be generalized as an opt-in way to clamp window->DC.CursorStartPos to avoid SafeArea?
+        // FIXME: Consider removing support for safe area down the line... it's messy. Nowadays consoles have support for TV calibration in OS settings.
         ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoSavedSettings;// | ImGuiWindowFlags_MenuBar;
 
         float height = ImGui::GetFrameHeight() + (verticalLayout?g.Style.WindowPadding.y:g.Style.WindowPadding.x);//ImMax(g.Style.DisplaySafeAreaPadding.y - g.Style.FramePadding.y, 0.0f)*2;
@@ -213,34 +225,45 @@ namespace ImGuiEx {
     }
 
     // DragPad (2d translations / offsets)
-    bool DragPad2(const char* label, ImVec2& vec){
-        ImGui::Text("%s", label); ImGui::SameLine();
-        ImVec2 availableSpace = { ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() };
+    template<typename VEC2_T>
+    inline bool DragPad2_t(const char* label, VEC2_T& vec){
+        // Calc some dimensions
+        ImGui::BeginGroup();
+        const ImVec2 label_size = CalcTextSize(label, NULL, true);
+        if(label_size.x > 0){
+            ImGui::Text("%s", label);
+            ImGui::SameLine();
+        }
+        VEC2_T availableSpace = { ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() };
         bool ret = false;
         availableSpace.x -= availableSpace.y + (ImGui::GetStyle().ItemSpacing.x*2.f);// + (ImGui::GetStyle().ItemInnerSpacing.x*4.f);
-        ImGui::PushID(label);
-        ImGui::SetNextItemWidth(availableSpace.x*.5f);
+//        ImGui::PushID(&vec);
+        float itemWidth = ImMax(availableSpace.x*.5f, 20.f);
+        ImGui::SetNextItemWidth(itemWidth);
         if(ImGui::DragFloat("##x", &vec.x, 1.f, 0.f, 10000, "%1.0f")){
             ret = true;
         }
         ImGui::SameLine();
-        ImGui::SetNextItemWidth(availableSpace.x*.5f);
+        ImGui::SetNextItemWidth(itemWidth);
         if(ImGui::DragFloat("##y", &vec.y, 1.f, 0.f, 10000, "%1.0f")){
             ret = true;
         }
         ImGui::SameLine();
-        static ImVec2 mousePos;
-        static ImVec2 fromValue;
-        static void* beingDragged = nullptr;
+//        ImGui::Dummy({availableSpace.y, availableSpace.y});
+        static VEC2_T mousePos;
+        static VEC2_T fromValue;
+        static ImGuiID beingDragged = 0u;
         static bool isDragging;
-        isDragging = label == beingDragged;
+        isDragging = ImGui::GetID(label) == beingDragged;
         if(isDragging) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_ButtonActive)); // Force-Mark active (unhovered+active is not "held" state)
-        ImGui::Button("+##dragBtn", {availableSpace.y, availableSpace.y});
+        ImGui::Button("+", {availableSpace.y, availableSpace.y});
         if(isDragging) ImGui::PopStyleColor();
         if(isDragging){
+            //ImVec2 diff = ImGui::GetMousePos() - mousePos;
             if(ImGui::IsItemDeactivated()){
-                beingDragged = nullptr;
+                beingDragged = 0u;
                 ret = true;
+                //std::cout << "End dragging!" << std::endl;
             }
             else if(ImGui::IsItemActive()){
                 ret = true; // Indicates an updated value while dragging (make this optional)
@@ -250,10 +273,18 @@ namespace ImGuiEx {
         else if(ImGui::IsItemClicked()){
             mousePos = ImGui::GetMousePos();
             fromValue = vec;
-            beingDragged = (void*) label;
+//            beingDragged = (void*) label;
+            beingDragged = ImGui::GetID(label);
         }
-        ImGui::PopID();
+        //ImGui::PopID();
+        ImGui::EndGroup();
         return ret;
+    }
+    bool DragPad2(const char* label, ImVec2& vec){
+        return DragPad2_t(label, vec);
+    }
+    bool DragPad2(const char* label, glm::vec2& vec){
+        return DragPad2_t(label, vec);
     }
 
     // - - - - Logger Helpers

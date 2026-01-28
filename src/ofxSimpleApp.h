@@ -21,24 +21,26 @@
 #endif
 
 #ifdef ofxSA_TIMELINE_ENABLE
-#include "ofxPlayhead.h"
+#	include "ofxPlayhead.h"
 #endif
 
 #ifdef ofxSA_TEXRECORDER_ENABLE
-#include "ofxFFmpegRecorder.h"
-#include "ofxFastFboReader.h"
+#	include "ofxFFmpegRecorder.h"
+#	include "ofxFastFboReader.h"
 #endif
 
 #ifdef ofxSA_NDI_SENDER_ENABLE
-#include "ofxNDI.h"
+#	include "ofxNDI.h"
+#	include "ofxNDIsender.h"
 #endif
 
 #if defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE)
-#include "ofFpsCounter.h"
+#	include "ofFpsCounter.h"
 #endif
 
 #ifdef ofxSA_QUADWRAPPER_ENABLE
-#	include "ofxGLWarper.h"
+//#	include "ofxGLWarper.h"
+#	include "ofxGLWarperImGui.h"
 #endif
 
 #ifdef TARGET_OSX
@@ -74,6 +76,8 @@ class ofxSimpleApp : public ofBaseApp {
 		void draw() override;
         virtual void drawScene();
 		virtual void drawGui();
+		virtual void beforeDraw();
+		virtual void afterDraw();
 
 		void renderGui();
 		void toggleGui();
@@ -89,6 +93,7 @@ class ofxSimpleApp : public ofBaseApp {
 //		void mouseEntered(int x, int y) override;
 //		void mouseExited(int x, int y) override;
 		void windowResized(int w, int h) override;
+        //void windowMoved(ofWindowPosEventArgs& _pos);
 //		void dragEvent(ofDragInfo dragInfo) override;
 //		void gotMessage(ofMessage msg) override;
 
@@ -195,9 +200,18 @@ protected:
         unsigned int getCanvasResolutionY() const;
 		void onCanvasViewportResize(ofRectangle& args);
 		void onCanvasContentResize(ContentResizeArgs& _args);
+		virtual void drawImGuiCanvasViewport();
 	protected:
 		ofxSimpleAppCanvas canvas;
 #endif
+
+#if ofxSA_ENABLE_COLOR_CORRECTIONS == 1
+    private:
+        ofShader vfxShader;
+    public:
+        void loadVfxShader();
+#endif
+
 
 #ifdef ofxSA_TIMELINE_ENABLE
 	protected:
@@ -253,12 +267,13 @@ protected:
 		ofxNDIsender ndiSender;
 		bool startNdi();
 		void stopNdi();
+		//std::string senderName;
 #endif
 
 		// Quad wrapping
 #ifdef ofxSA_QUADWRAPPER_ENABLE
-		ofxGLWarper quadWarper;
-		bool bEnableQuadWarper = false;
+		ofxGLWarperImGui quadWarper;
+//		bool bEnableQuadWarper = false;
 #endif
 
 #ifdef ofxSA_BACKGROUND_CLEARING

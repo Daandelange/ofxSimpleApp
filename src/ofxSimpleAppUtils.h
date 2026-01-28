@@ -142,6 +142,7 @@ namespace ImGuiEx {
 
     // DragPad widget (translation vec2)
     bool DragPad2(const char* label, ImVec2& vec);
+    bool DragPad2(const char* label, glm::vec2& vec);
 
     template<typename LoggerBuffer=ImGuiTextBuffer>
     void DrawLoggerChannelClear(LoggerBuffer& , ImVector<int>& );

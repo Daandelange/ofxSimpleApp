@@ -175,6 +175,11 @@
 #   endif
 #endif
 
+// Root XML name
+#if !defined(ofxSA_XML_ROOTNODE)
+#   define ofxSA_XML_ROOTNODE "ofxSimpleApp"
+#endif
+
 // Default save file name
 // Todo: rename with Default in name
 // Todo: A file to load by default ?
@@ -310,10 +315,12 @@
 
 // NDI
 #ifdef ofxSA_NDI_SENDER_ENABLE
+//#   define ofxSA_NDI_SENDER_ENABLE
 #endif
 
 // QUADWRAPPER
 #ifdef ofxSA_QUADWRAPPER_ENABLE
+//#   define ofxSA_QUADWRAPPER_ENABLE
 #endif
 
 // Sanitize Canvas setting (force-disable on unsupported platforms)
@@ -330,9 +337,17 @@
 #   ifndef ofxSA_SECONDARY_WINDOW_AUTOENABLED
 #       define ofxSA_SECONDARY_WINDOW_AUTOENABLED 0 // off by default
 #   endif
+#   ifndef ofxSA_CANVAS_OUTPUT_WITHIN_GUI_VIEWPORT
+#       define ofxSA_CANVAS_OUTPUT_WITHIN_GUI_VIEWPORT 1 // Experimental ! Draw canvas only in gui viewport (as opposed to full window)
+#   endif
 #else
     // Force-off when disabled
 #   define ofxSA_SECONDARY_WINDOW_AUTOENABLED 0
+#endif
+
+// Color corrector
+#ifndef ofxSA_ENABLE_COLOR_CORRECTIONS
+#   define ofxSA_ENABLE_COLOR_CORRECTIONS 0 // Enable extra output color correction (shader pass)
 #endif
 
 // Timeline settings
@@ -397,7 +412,7 @@
 // Define if there are any modules with a menu
 #ifndef ofxSA_HAS_MODULES_MENU
 // Do current modules have a menu ? (or force it)
-#   if defined(ofxSA_FORCE_MODULES_MENU) || defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE) || defined(ofxSA_NDI_SENDER_ENABLE)
+#   if defined(ofxSA_FORCE_MODULES_MENU) || defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE) || defined(ofxSA_NDI_SENDER_ENABLE) || defined(ofxSA_QUADWRAPPER_ENABLE)
 #       define ofxSA_HAS_MODULES_MENU
 #   endif
 #endif

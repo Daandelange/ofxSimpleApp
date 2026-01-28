@@ -1,4 +1,5 @@
 #include <string>
+#include <memory>
 #include "ofxSimpleApp.h"
 
 #include "imgui.h"
@@ -144,6 +145,10 @@ void ofxSimpleApp::setup(){
 	ofAddListener(canvas.onContentResize, this, &ofxSimpleApp::onCanvasContentResize);
 #endif
 
+#if ofxSA_ENABLE_COLOR_CORRECTIONS == 1
+	loadVfxShader();
+#endif
+
 #ifdef ofxSA_TIMELINE_ENABLE
     ofxSA_TIMELINE_GET(timeline).setFps(ofxSA_FPS_CAP);
 
@@ -198,12 +203,12 @@ void ofxSimpleApp::setup(){
 
 	// Quad wrapping
 #ifdef ofxSA_QUADWRAPPER_ENABLE
-	auto docRect = getDocumentSize();
+	ofRectangle docRect = getDocumentSize();
 	quadWarper.setup(0, 0, docRect.getWidth(), docRect.getHeight()); // initial size = fulscreen
 	quadWarper.load();// try autoload from save
 	quadWarper.drawSettings.bDrawRectangle = true;
 	quadWarper.drawSettings.bDrawCorners = true;
-	bEnableQuadWarper = false;
+	quadWarper.bEnableQuadWarper = false;
 #endif
 
 	// Restore settings on launch
@@ -267,8 +272,6 @@ void ofxSimpleApp::update(){
 void ofxSimpleApp::draw(){
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_SCOPE("ofxSimpleApp::draw()");
-#endif
-#ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TSGL_START("ofxSimpleApp::draw()");
 #endif
 
@@ -286,6 +289,9 @@ void ofxSimpleApp::draw(){
 #if ofxSA_NEWFRAME_FLAGGER == 1
     bNewFrame = false;
 #endif
+
+    // User callback
+    this->beforeDraw();
 
     // Start canvas ?
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
@@ -330,36 +336,88 @@ void ofxSimpleApp::draw(){
     }
 #endif
 
-#ifdef ofxSA_QUADWRAPPER_ENABLE
-    if(bEnableQuadWarper){
+#if defined(ofxSA_QUADWRAPPER_ENABLE) // && !defined(ofxSA_CANVAS_OUTPUT_ENABLE)
+    if(quadWarper.bEnableQuadWarper){
         // Erase BG as wrapped tex is not guaranteed to cover the whole screen
         ofClear(0,0,0,255);
         // activate wrapper
         quadWarper.begin();
 
+//        static bool ok = false;
+//        if(!ok){
+//            std::cout << "QuadWrapper Enabled!" << std::endl;
+//            ok = true;
+//        }
     }
-#else
-//    std::cout << "Holy ****!" << std::endl;
 #endif
 
     // Call the custom draw function
     drawScene();
 
-#ifdef ofxSA_QUADWRAPPER_ENABLE
-    if(bEnableQuadWarper) quadWarper.end();
+//    //    // tmp !
+//    ofPushStyle();
+//    ofFill();
+//    ofSetColor(255,255,255,255);
+//    ofDrawCircle(20, 20, 0, 20);
+//    ofPopStyle();
+
+#if defined(ofxSA_QUADWRAPPER_ENABLE) // && !defined(ofxSA_CANVAS_OUTPUT_ENABLE)
+    if(quadWarper.bEnableQuadWarper) quadWarper.end();
 #endif
 
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_STOP("ofxSimpleApp::drawScene()");
 #endif
+
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.fbo.end();
 #endif
 
+    // User callback
+    this->afterDraw();
+
+//#ifdef ofxSA_QUADWRAPPER_ENABLE
+//    if(bEnableQuadWarper){
+//        // Erase BG as wrapped tex is not guaranteed to cover the whole screen
+//        ofClear(0,0,0,255);
+//        // activate wrapper
+//        quadWarper.begin();
+//    }
+//#endif
+
+#	if ofxSA_ENABLE_COLOR_CORRECTIONS == 1 && false
+        static ofFbo vfxFbo;// = canvas.fbo;
+        if(canvas.fbo.isAllocated()){
+            if(!vfxFbo.isAllocated() || vfxFbo.getWidth()!=canvas.fbo.getWidth() || vfxFbo.getHeight()!=canvas.fbo.getHeight()){
+                vfxFbo.allocate(canvas.fbo.getWidth(), canvas.fbo.getHeight(), GL_RGBA);//canvas.fbo.getTexture().texData.glInternalFormat);
+            }
+            if(vfxShader.isLoaded() && vfxFbo.isAllocated()){
+                ofPushStyle();
+                vfxFbo.begin();
+                vfxShader.begin();
+                ofSetColor(ofFloatColor::white);
+                vfxShader.setUniformTexture("tex0", canvas.fbo.getTexture(), 0);
+                vfxShader.setUniform2f("resolution", canvas.fbo.getWidth(), canvas.fbo.getHeight());
+                //ofDrawRectangle(getDocumentSize());
+                canvas.fbo.draw(0,0);
+                //std::cout << "DocSize=" << getDocumentSize() << "   ---  canvas=" << canvas.getCanvasSize() << std::endl;
+                vfxShader.end();
+                vfxFbo.end();
+                ofPopStyle();
+//                std::swap(vfxFbo, canvas.fbo);
+            }
+        }
+#   endif
+
     // Draw canvas texture to viewport
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     canvas.draw();
+//    if(vfxFbo.isAllocated()) vfxFbo.draw(0,0);//,1000,500);
 #endif
+
+//#ifdef ofxSA_QUADWRAPPER_ENABLE
+//    if(bEnableQuadWarper) quadWarper.end();
+//#endif
 
     // Export the image before the GUI
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
@@ -404,6 +462,16 @@ void ofxSimpleApp::draw(){
 }
 
 //--------------------------------------------------------------
+void ofxSimpleApp::beforeDraw(){
+
+}
+
+//--------------------------------------------------------------
+void ofxSimpleApp::afterDraw(){
+
+}
+
+//--------------------------------------------------------------
 void ofxSimpleApp::drawScene(){
 #if ofxSA_NEWFRAME_FLAGGER == 1
         flagNewFrame();
@@ -418,17 +486,18 @@ void ofxSimpleApp::publishSyphonTexture(){
     if(bRecordersOnlyPublishNewFrames && !isNewFrame()) return;
 #endif
 
-    // Disabled ?
-    if(!bEnableSyphonOutput) return;
+    // Enabled ?
+    if(bEnableSyphonOutput){
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-    syphonServer.publishTexture(&canvas.fbo.getTexture());
+        syphonServer.publishTexture(&canvas.fbo.getTexture());
 #else
         // By default, this publishes the full window.
         // You can override this to publish a custom texture.
         syphonServer.publishScreen();
 #endif
-    syphonFps.newFrame();
+        syphonFps.newFrame();
+    }
 }
 #endif
 
@@ -739,8 +808,7 @@ void ofxSimpleApp::drawGui(){
 #endif
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-        // The canvas HUD
-        canvas.drawGuiViewportHUD();
+        drawImGuiCanvasViewport();
 #endif
 
 #ifdef ofxSA_TIMELINE_ENABLE
@@ -813,6 +881,7 @@ void ofxSimpleApp::keyPressed(ofKeyEventArgs &e){
         // Fullscreen
         if(e.keycode == 70){ // 70 = F
             ofToggleFullscreen();
+            onImguiViewportChange();
         }
         // Show GUI
         else if(e.keycode == 71){ // 72 = G (H already taken in osx)
@@ -1315,39 +1384,21 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 #   ifdef ofxSA_QUADWRAPPER_ENABLE
             if(ImGui::BeginMenu("Quad Wrapper")){
                 ImGui::Dummy({ofxSA_UI_MARGIN, ofxSA_UI_MARGIN});
-                ImGui::TextDisabled("Experimental feature !");
-                ImGui::SeparatorText("Quad Wrapping");
-                ImGui::Checkbox("Enable Quad Wrapping", &bEnableQuadWarper);
-                static bool bEnableQuadEditing = false;
-                if(ImGui::Checkbox("Enable Editing Quads", &bEnableQuadEditing)){
-                    quadWarper.activate(bEnableQuadEditing); // to enable event listeners for easily configuring the quads
-                }
-                ImGui::Text("Quads :");
+                //ImGui::TextDisabled("Experimental feature !");
+                quadWarper.drawImGuiWidget(getDocumentSize());
+                ImGui::EndMenu();
+            }
+#   endif
+
+#   if ofxSA_ENABLE_COLOR_CORRECTIONS == 1
+           if(ImGui::BeginMenu("Color VFX")){
+                ImGui::Dummy({ofxSA_UI_MARGIN, ofxSA_UI_MARGIN});
+                ImGui::Text("Shader loaded: %s", vfxShader.isLoaded()?"yes":"no");
                 ImGui::SameLine();
-                if(ImGui::Button("Reset")){
-                    auto docRect = getDocumentSize();
-                    quadWarper.setup(0, 0, docRect.getWidth(), docRect.getHeight());
+                if(ImGui::Button("Reload##vfx-shader-reload")){
+                    loadVfxShader();
                 }
-                ImGui::SameLine();
-                if(ImGui::Button("Save")){
-                    quadWarper.save();
-                }
-                ImGui::SameLine();
-                if(ImGui::Button("Load")){
-                    quadWarper.load();
-                }
-                static std::pair<const char*, ofxGLWarper::CornerLocation> cornerModes[4] = {
-                    { "TL", ofxGLWarper::TOP_LEFT},
-                    { "TR", ofxGLWarper::TOP_RIGHT},
-                    { "BR", ofxGLWarper::BOTTOM_RIGHT},
-                    { "BL", ofxGLWarper::BOTTOM_LEFT}
-                };
-                for(auto& cornerMode : cornerModes){
-                    ImVec2 corner = quadWarper.getCorner(cornerMode.second);
-                    if(ImGuiEx::DragPad2(cornerMode.first, corner)){
-                        quadWarper.setCorner(cornerMode.second, corner);
-                    }
-                }
+
                 ImGui::EndMenu();
             }
 #   endif
@@ -2075,7 +2126,11 @@ void ofxSimpleApp::ImGuiDrawDockingSpace(){
 void ofxSimpleApp::onImguiViewportChange(){
     // Update canvas
 #   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+#       if ofxSA_CANVAS_OUTPUT_WITHIN_GUI_VIEWPORT == 0
+    ofRectangle vp = ofGetWindowRect();
+#       else
     ofRectangle vp = getGuiViewport(false);
+#       endif
     canvas.setViewportRect(vp.width, vp.height, vp.x, vp.y);
 #   endif
 }
@@ -2177,6 +2232,8 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
         loaded = false;
     }
     else loaded = true;
+
+    pugi::xml_node docNode = doc.child(ofxSA_XML_ROOTNODE);
 #else
     xml.clear(); // Ensure to rm garbage
     bool loaded = xml.loadFile("settings.xml");
@@ -2190,7 +2247,7 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
     // Parse data
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
     // Load ofxSimpleApp section
-    pugi::xml_node ofxSimpleAppSettingsNode = doc.child("ofxSimpleAppSettings");
+    pugi::xml_node ofxSimpleAppSettingsNode = docNode.child("ofxSimpleAppSettings");
     if(!ofxSimpleAppSettingsNode){
         ret = false;
         ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "There's no `ofxSimpleAppSettings` section in the document !";
@@ -2207,7 +2264,7 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
     }
 
     // Load custom section
-    pugi::xml_node customAppSettingsNode = doc.child(ofxSA_APP_ID);
+    pugi::xml_node customAppSettingsNode = docNode.child(ofxSA_APP_ID);
 
     // tmp : fallback for previous file load system, broken since commit e92de44a
     if(!customAppSettingsNode){
@@ -2220,11 +2277,11 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
     }
     else {
         if(retrieveXmlSettings(customAppSettingsNode)){
-            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Imported `" << ofxSA_APP_ID << "` section from the document !";
+            ofLogVerbose("ofxSimpleApp::loadXmlSettings()") << "Success: Imported `" << ofxSA_APP_ID << "` section from the document !";
         }
         else {
             ret = false;
-            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Couldn't parse `" << ofxSA_APP_ID << "` section in the document !";
+            ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Failure: Couldn't parse `" << ofxSA_APP_ID << "` section in the document !";
         }
     }
 
@@ -2264,10 +2321,11 @@ bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
 
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
     pugi::xml_document doc;
-    pugi::xml_node ofxSimpleAppSettingsNode = doc.append_child("ofxSimpleAppSettings");
+    pugi::xml_node docNode = doc.append_child(ofxSA_XML_ROOTNODE);
+    pugi::xml_node ofxSimpleAppSettingsNode = docNode.append_child("ofxSimpleAppSettings");
     success *= ofxSimpleApp::ofxSA_populateXmlSettings(ofxSimpleAppSettingsNode);
 
-    pugi::xml_node customAppSettingsNode = doc.append_child(ofxSA_APP_ID);
+    pugi::xml_node customAppSettingsNode = docNode.append_child(ofxSA_APP_ID);
     success *= populateXmlSettings(customAppSettingsNode);  // fixme : maybe this should be 2 different functions. If unimplemented by user, ofxSimpleApp::pxs is called twice ! What if user calls ofxSimpleApp::pxs manually ?
 
     if(success){
@@ -2312,22 +2370,42 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     _node.append_child("show_log_window").text().set(bShowLogs?true:false);
     _node.append_child("log_level").text().set(ofGetLogLevel());
 
+    // Window
+    pugi::xml_node windowNode = ofxPugiXml::getOrAppendNode(_node, "window");
+    ret *= (bool) windowNode;
+    if(windowNode){
+        ofAppBaseWindow* window = ofGetWindowPtr();
+        if(window){
+            bool isFullscreen = window->getWindowMode()==ofWindowMode::OF_FULLSCREEN;
+            ret *= ofxPugiXml::setNodeAttribute(windowNode, "fullscreen", isFullscreen);
+            if(!isFullscreen){
+                // todo: make this stored ?
+                ret *= ofxPugiXml::setNodeAttribute(windowNode, "size", window->getWindowSize());
+            }
+        }
+
+    }
+
     // Document settings
+#if defined(ofxSA_BACKGROUND_CLEARING) || defined(ofxSA_BACKGROUND_CLEARING)
     pugi::xml_node docNode = _node.append_child("document");
-#ifdef ofxSA_BACKGROUND_CLEARING
+    #ifdef ofxSA_BACKGROUND_CLEARING
+	//docNode.append_child("doc_clearing").text().set(bEnableClearing);
+	//docNode.append_child("doc_clear_color").text().set(bgClearColor);
 	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_clearing", bEnableClearing);
 	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_clearing_color", bgClearColor);
-#endif
-#ifdef ofxSA_BACKGROUND_FADING
+	#endif
+	#ifdef ofxSA_BACKGROUND_FADING
 	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_fading", bEnableFading);
 	ofxPugiXml::setNodeValueToAttribute(docNode, "doc_fading_color", bgFadeColor);
+	#endif
 #endif
 
     // todo: targetFPS, resolution, fullscreen, etc.
 
     // Canvas
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-    pugi::xml_node canvasSettingsNode = _node.append_child("canvas");
+    pugi::xml_node canvasSettingsNode = ofxPugiXml::getOrAppendNode(_node, "canvas");
     ret *= canvasSettingsNode && canvas.populateXmlNode(canvasSettingsNode);
 #endif
 
@@ -2338,10 +2416,30 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     ret *= timelineSettingsNode && tl.populateXmlNode(timelineSettingsNode);
 #endif
 
+    // Syphon
+#ifdef ofxSA_SYPHON_OUTPUT
+    pugi::xml_node syphonSettingsNode = ofxPugiXml::getOrAppendNode(_node, "syphon-output");
+    ret *= (bool) syphonSettingsNode;
+    if(syphonSettingsNode){
+        ret *= ofxPugiXml::setNodeAttribute(syphonSettingsNode, "enabled", this->bEnableSyphonOutput);
+        ret *= ofxPugiXml::setNodeAttribute(syphonSettingsNode, "name", this->syphonServer.getName().c_str());
+    }
+#endif
+
     // todo: Recording settings
 #ifdef ofxSA_TEXRECORDER_ENABLE
-    pugi::xml_node texRecorderSettingsNode = _node.append_child("texture_recorder");
-    texRecorderSettingsNode.append_child("recorder_mode").text().set(texRecorderMode);
+    pugi::xml_node texRecorderSettingsNode = ofxPugiXml::getOrAppendNode(_node, "texture_recorder");
+    $ret *= texRecorderSettingsNode.append_child("recorder_mode").text().set(texRecorderMode);
+#endif
+
+    // Quad wrapping
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+    pugi::xml_node warperSettingsNode = ofxPugiXml::getOrAppendNode(_node, "quad-warp");
+    ret *= (bool) warperSettingsNode;
+    if(warperSettingsNode){
+        ret *= ofxPugiXml::setNodeAttribute(warperSettingsNode, "enabled", this->quadWarper.bEnableQuadWarper);
+    }
+    quadWarper.save(); // uses ofxXml!
 #endif
 
     // Done
@@ -2382,6 +2480,33 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
         ofSetLogLevel(lvl);
     }
 
+    // Window
+    pugi::xml_node windowNode = _node.child("window");
+    ret *= (bool) windowNode;
+    if(windowNode){
+        ofAppBaseWindow* window = ofGetWindowPtr();
+        if(window && window->getWindowContext()!=nullptr && window->renderer() && window->renderer()->getViewportHeight() > 0 ){
+            //bool isFullscreen = window->getWindowMode()==ofWindowMode::OF_FULLSCREEN;
+            bool loadedFullScreen = false;
+            bool hasFullScreen = ofxPugiXml::getNodeAttributeValue(windowNode, "fullscreen", loadedFullScreen);
+            if(hasFullScreen && loadedFullScreen){
+                ofSetFullscreen(true);
+            }
+            else {
+                ofSetFullscreen(false);
+                // todo: make this stored in app and always save for re-use ??
+                glm::vec2 newSize = {0,0};
+                bool hasSize = ofxPugiXml::getNodeAttributeValue(windowNode, "size", newSize);
+                if(hasSize && newSize.x>0 && newSize.y>0){
+                    ofSetWindowShape(newSize.x, newSize.y);
+                }
+            }
+        }
+        else {
+            ofLogNotice("ofxSimpleApp::ofxSA_retrieveXmlSettings") << "Ignoring Window settings as the current window is not yet ready !";
+        }
+    }
+
         // Document settings
     pugi::xml_node docNode = _node.append_child("document");
 #ifdef ofxSA_BACKGROUND_CLEARING
@@ -2406,12 +2531,35 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
     ret *= timelineSettingsNode && tl.retrieveXmlNode(timelineSettingsNode);
 #endif
 
+    // Syphon
+#ifdef ofxSA_SYPHON_OUTPUT
+    pugi::xml_node syphonSettingsNode = _node.child("syphon-output");
+    ret *= (bool) syphonSettingsNode;
+    if(syphonSettingsNode){
+        std::string nameTmp = { ofxSA_APP_NAME };
+        ret *= ofxPugiXml::getNodeAttributeValue(syphonSettingsNode, "enabled", this->bEnableSyphonOutput, false);
+        ret *= ofxPugiXml::getNodeAttributeValue(syphonSettingsNode, "name", nameTmp);
+        this->syphonServer.setName(nameTmp);
+    }
+#endif
+
     // todo: Recording settings
 #ifdef ofxSA_TEXRECORDER_ENABLE
     pugi::xml_node texRecorderSettingsNode = _node.child("texture_recorder");
     if(pugi::xml_node modeChild = texRecorderSettingsNode.child("recorder_mode")){
         texRecorderMode = static_cast<TexRecorderMode_>(modeChild.text().as_int((int)TexRecorderMode_PNG));
     }
+#endif
+
+    // Quad wrapping
+#ifdef ofxSA_QUADWRAPPER_ENABLE
+    pugi::xml_node warperSettingsNode = _node.child("quad-warp");
+    ret *= (bool) warperSettingsNode;
+    if(warperSettingsNode){
+        ret *= ofxPugiXml::getNodeAttributeValue(warperSettingsNode, "enabled", this->quadWarper.bEnableQuadWarper, false);
+    }
+    // Todo: use pugiXML ?
+    quadWarper.load(); // uses ofxXml!
 #endif
 
     return ret;
@@ -2430,6 +2578,10 @@ void ofxSimpleApp::onCanvasViewportResize(ofRectangle& args){
 }
 void ofxSimpleApp::onCanvasContentResize(ContentResizeArgs& _args){
     onContentResize(_args.width*_args.scale, _args.height*_args.scale);
+}
+void ofxSimpleApp::drawImGuiCanvasViewport(){
+    // The canvas HUD
+    canvas.drawGuiViewportHUD();
 }
 #endif
 
@@ -2465,5 +2617,12 @@ bool ofxSimpleApp::startNdi(){
 
 void ofxSimpleApp::stopNdi(){
     ndiSender.ReleaseSender();
+}
+#endif
+
+#if ofxSA_ENABLE_COLOR_CORRECTIONS == 1
+void ofxSimpleApp::loadVfxShader(){
+	std::string vfxShaderPath = ofToDataPath("shaders/shadersES2", true);
+	vfxShader.load(vfxShaderPath + "/shader.vfx.vert", vfxShaderPath + "/shader.vfx.frag");
 }
 #endif
