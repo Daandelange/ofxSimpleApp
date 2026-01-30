@@ -2426,6 +2426,28 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     }
 #endif
 
+// NDI
+#ifdef ofxSA_NDI_SENDER_ENABLE
+    pugi::xml_node ndiSettingsNode = ofxPugiXml::getOrAppendNode(_node, "ndi-output");
+    ret *= (bool) ndiSettingsNode;
+    if(ndiSettingsNode){
+        const bool enabled = this->ndiSender.SenderCreated();
+        ret *= ofxPugiXml::setNodeAttribute(ndiSettingsNode, "enabled", enabled);
+        ret *= ofxPugiXml::setNodeAttribute(ndiSettingsNode, "name", ndiSender.GetSenderName().c_str());
+
+        pugi::xml_node runtimeSettingsNode = ofxPugiXml::getOrAppendNode(_node, "runtime");
+        ret *= (bool) runtimeSettingsNode;
+        if(runtimeSettingsNode){
+            ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "fps", ndiSender.GetFrameRate());
+            ret *= ofxPugiXml::setNodeAttribute<int>(runtimeSettingsNode, "format", ndiSender.GetFormat());
+            ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "async", ndiSender.GetAsync());
+            ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "readback", ndiSender.GetReadback());
+            ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "progressive", ndiSender.GetProgressive());
+            ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "clocked", ndiSender.GetReadback());
+        }
+    }
+#endif
+
     // todo: Recording settings
 #ifdef ofxSA_TEXRECORDER_ENABLE
     pugi::xml_node texRecorderSettingsNode = ofxPugiXml::getOrAppendNode(_node, "texture_recorder");
@@ -2507,7 +2529,7 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
         }
     }
 
-        // Document settings
+    // Document settings
     pugi::xml_node docNode = _node.append_child("document");
 #ifdef ofxSA_BACKGROUND_CLEARING
 	ofxPugiXml::getNodeValueFromAttribute(docNode, "doc_clearing", bEnableClearing);
@@ -2540,6 +2562,54 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
         ret *= ofxPugiXml::getNodeAttributeValue(syphonSettingsNode, "enabled", this->bEnableSyphonOutput, false);
         ret *= ofxPugiXml::getNodeAttributeValue(syphonSettingsNode, "name", nameTmp);
         this->syphonServer.setName(nameTmp);
+    }
+#endif
+
+    // NDI
+#ifdef ofxSA_NDI_SENDER_ENABLE
+    pugi::xml_node ndiSettingsNode = _node.child("ndi-output");
+    ret *= (bool) ndiSettingsNode;
+    if(ndiSettingsNode){
+        static std::string nameTmp = { ofxSA_APP_NAME }; // note: needs to remain as ofxNDI only stores the ptr !
+        bool enabled = false;
+        ret *= ofxPugiXml::getNodeAttributeValue(ndiSettingsNode, "enabled", enabled);
+        ret *= ofxPugiXml::getNodeAttributeValue(ndiSettingsNode, "name", nameTmp);
+
+        int format = (int)NDIlib_FourCC_type_RGBA;//ndiSender.GetFormat();
+        double fps = 60.0;//ndiSender.GetFrameRate();
+        bool async = false;//ndiSender.GetAsync();
+        bool readback = false;//ndiSender.GetReadback();
+        bool progressive = true;//ndiSender.GetProgressive();
+        bool clocked = true;//ndiSender.GetClockVideo();
+        pugi::xml_node runtimeSettingsNode = _node.child("runtime");
+        ret *= (bool) runtimeSettingsNode;
+        if(runtimeSettingsNode){
+            ret *= ofxPugiXml::getNodeAttributeValue(runtimeSettingsNode, "fps", fps);
+            ret *= ofxPugiXml::getNodeAttributeValue<int>(runtimeSettingsNode, "format", format);
+            ret *= ofxPugiXml::getNodeAttributeValue(runtimeSettingsNode, "async", async);
+            ret *= ofxPugiXml::getNodeAttributeValue(runtimeSettingsNode, "readback", readback);
+            ret *= ofxPugiXml::getNodeAttributeValue(runtimeSettingsNode, "progressive", progressive);
+            ret *= ofxPugiXml::getNodeAttributeValue(runtimeSettingsNode, "clocked", clocked);
+        }
+
+        if(this->ndiSender.SenderCreated()) this->stopNdi();
+
+        if(runtimeSettingsNode){
+            ndiSender.SetProgressive(progressive);
+            ndiSender.SetClockVideo(clocked);
+            ndiSender.SetReadback(readback);
+            ndiSender.SetAsync(async);
+            ndiSender.SetFrameRate(fps);
+            ndiSender.SetFormat((NDIlib_FourCC_video_type_e)format);
+        }
+
+        if(enabled){
+#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+            ret *= ndiSender.CreateSender(nameTmp.c_str(), canvas.getCanvasWidth(), canvas.getCanvasHeight());
+#   else
+            ret *=  ndiSender.CreateSender(nameTmp.c_str(), ofGetWindowWidth(), ofGetWindowHeight());
+#   endif
+        }
     }
 #endif
 
