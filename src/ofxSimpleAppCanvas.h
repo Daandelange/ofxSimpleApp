@@ -46,7 +46,7 @@ enum GlTexRepeatMode_ : GLint {
     GlTexRepeatMode_Repeat         = GL_REPEAT,          // Tile
     GlTexRepeatMode_RepeatMirrored = GL_MIRRORED_REPEAT, // Mirrored
     GlTexRepeatMode_ClampEdge      = GL_CLAMP_TO_EDGE,   // Edge color
-    GlTexRepeatMode_BorderColor    = GL_CLAMP_TO_BORDER, // Black
+    GlTexRepeatMode_BorderColor    = GL_CLAMP_TO_BORDER, // Solid / Black
 };
 extern const std::pair<GlTexRepeatMode_, const char*> glTexRepeatModes[4];
 const char* glTexRepeatModeGetName(GlTexRepeatMode_ _mode );

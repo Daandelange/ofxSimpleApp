@@ -229,7 +229,7 @@ namespace ImGuiEx {
     inline bool DragPad2_t(const char* label, VEC2_T& vec){
         // Calc some dimensions
         ImGui::BeginGroup();
-        const ImVec2 label_size = CalcTextSize(label, NULL, true);
+        const ImVec2 label_size = ImGui::CalcTextSize(label, NULL, true);
         if(label_size.x > 0){
             ImGui::Text("%s", label);
             ImGui::SameLine();
@@ -240,12 +240,12 @@ namespace ImGuiEx {
 //        ImGui::PushID(&vec);
         float itemWidth = ImMax(availableSpace.x*.5f, 20.f);
         ImGui::SetNextItemWidth(itemWidth);
-        if(ImGui::DragFloat("##x", &vec.x, 1.f, 0.f, 10000, "%1.0f")){
+        if(ImGui::DragFloat("##x", &vec.x, 1.f, -10000, 10000, "%1.0f")){
             ret = true;
         }
         ImGui::SameLine();
         ImGui::SetNextItemWidth(itemWidth);
-        if(ImGui::DragFloat("##y", &vec.y, 1.f, 0.f, 10000, "%1.0f")){
+        if(ImGui::DragFloat("##y", &vec.y, 1.f, -10000, 10000, "%1.0f")){
             ret = true;
         }
         ImGui::SameLine();
