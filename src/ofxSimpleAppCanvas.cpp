@@ -1,5 +1,5 @@
 #include "ofxSimpleAppCanvas.h"
-#include "glfw3.h"
+#include "GLFW/glfw3.h"
 #include "ofxPugiXMLHelpers.h"
 
 template<typename TYPE, int SIZE>
