@@ -16,7 +16,7 @@
 #ifdef ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW
 #include "ofxSimpleAppCanvas.h"
 #include "ofAppGLFWWindow.h"
-#include "glfw3.h"
+#include "GLFW/glfw3.h"
 #endif
 #endif
 
