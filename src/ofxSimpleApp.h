@@ -30,8 +30,16 @@
 #endif
 
 #ifdef ofxSA_NDI_SENDER_ENABLE
-#	include "ofxNDI.h"
-#	include "ofxNDIsender.h"
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
+#		include "ofxNDI.h"
+#		include "ofxNDIsender.h"
+#	else
+#		include "ofxNDI.h"
+#		include "ofxNDISender.h"
+#		include "ofxNDISendStream.h"
+//#		include "ofxNDIGenlock.h"
+#		include "ofxNDITextureSender.h"
+#	endif
 #endif
 
 #if defined(ofxSA_SYPHON_OUTPUT) || defined(ofxSA_TEXRECORDER_ENABLE)
@@ -98,7 +106,8 @@ class ofxSimpleApp : public ofBaseApp {
 //		void gotMessage(ofMessage msg) override;
 
 		//--------------------------------------------------------------
-		virtual void audioRequested(float * output, int bufferSize, int nChannels) override;
+//		virtual void audioRequested(float * output, int bufferSize, int nChannels) override;
+		virtual void audioOut(ofSoundBuffer& buf) override;
 
 protected:
         // Internals
@@ -264,7 +273,19 @@ protected:
 #endif
 
 #ifdef ofxSA_NDI_SENDER_ENABLE
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
 		ofxNDIsender ndiSender;
+#	else
+		ofxNDISender ndiSender;
+		ofxNDISendVideo ndiVideoSend;
+//		ofxNDISendAudio ndiAudioSend;
+		ofxNDISendAudio ndiAudioSend;
+//		ofxNDIGenlock ndiLock;
+		bool ndiClockVideo = true;
+		bool ndiClockAudio = true;
+		bool bSendAudio = false;
+		bool bSendVideo = false;
+#	endif
 		bool startNdi();
 		void stopNdi();
 		//std::string senderName;

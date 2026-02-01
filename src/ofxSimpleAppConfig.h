@@ -316,6 +316,9 @@
 // NDI
 #ifdef ofxSA_NDI_SENDER_ENABLE
 //#   define ofxSA_NDI_SENDER_ENABLE
+#   ifndef ofxSA_NDI_SENDER_LEADEDGE
+#      define ofxSA_NDI_SENDER_LEADEDGE 1 // otherwise : nariakiiwatani/ofxNDI
+#   endif
 #endif
 
 // QUADWRAPPER

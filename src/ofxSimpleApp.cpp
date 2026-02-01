@@ -9,6 +9,8 @@
 #include "Spectrum.h"
 #include "DarkTheme.h"
 #include "DefaultTheme.h"
+#include <future> // for async
+
 #ifdef ofxSA_GUI_THEME_CUSTOM_FILE
 #	include ofxSA_GUI_THEME_CUSTOM_FILE
 #endif
@@ -19,7 +21,10 @@
 #endif
 
 #ifdef ofxSA_NDI_SENDER_ENABLE
-#include "ofxNDIImGuiEx.h"
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
+#		include "ofxNDIImGuiEx.h"
+#	else
+#	endif
 #endif
 
 #include "ofxSimpleAppUtils.h"
@@ -175,6 +180,7 @@ void ofxSimpleApp::setup(){
     // Locate ffmpeg binary
     #if defined(TARGET_OSX)
     m_Recorder.setFFmpegPath(ofToDataPath("ffmpeg/osx/ffmpeg"));
+    // Todo: Add linux support here ? which path ?
     #elif defined(TARGET_WIN32)
     m_Recorder.setFFmpegPath(ofToDataPath("ffmpeg/win/ffmpeg.exe"));
     //m_Recorder.setFFmpegPath(ofToDataPath("C:/dev/msys64/ThirdParty/ffmpeg/ffmpeg_build/bin/ffmpeg.exe", true));
@@ -189,14 +195,18 @@ void ofxSimpleApp::setup(){
 
     // NDI
 #ifdef ofxSA_NDI_SENDER_ENABLE
-    ndiSender.SetReadback(false);
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
+    ndiSender.SetReadback(true); // definitely faster !
     ndiSender.SetAsync(false);
 
-#   ifdef ofxSA_TIMELINE_ENABLE
+#       ifdef ofxSA_TIMELINE_ENABLE
     ndiSender.SetFrameRate((int)ofxSA_TIMELINE_GET(timeline).getFps());
-#   else
+#       else
     ndiSender.SetFrameRate(ofGetTargetFrameRate());
-#   endif
+
+#       endif
+#else // ofxSA_NDI_SENDER_LEADEDGE = 0
+#endif // ofxSA_NDI_SENDER_LEADEDGE
 
     startNdi();
 #endif
@@ -235,7 +245,11 @@ void ofxSimpleApp::exit(){
 #endif
 
 #ifdef ofxSA_NDI_SENDER_ENABLE
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
     ndiSender.ReleaseSender();
+#   else
+    // todo
+#   endif
 #endif
 
     // This one is not automagically bound by OF (seems only supported in GLFW windows)
@@ -433,16 +447,46 @@ void ofxSimpleApp::draw(){
 #endif
     // NDI
 #ifdef ofxSA_NDI_SENDER_ENABLE
-#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+//#   if ofxSA_NEWFRAME_FLAGGER == 1 // todo !
+//    if(bRecordersOnlyPublishNewFrames && !isNewFrame()) return;
+//#   endif
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
+#       ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     ndiSender.SendImage(canvas.fbo);
-#   else
+#       else
     ofImage pix;
     auto w = ofGetWindowWidth();
     auto h = ofGetWindowHeight();
     pix.setUseTexture(true);
     pix.grabScreen(0, 0, w, h);
     ndiSender.SendImage(pix);
-#   endif
+#       endif
+#   else
+    // todo !
+#       ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+    if(bSendVideo){
+#           ifdef ofxSA_TEXRECORDER_USE_OFXFASTFBOREADER
+        fastFboReader.setAsync(false);
+        int glFormat = canvas.fbo.getTexture().texData.glInternalFormat;
+        ofPixels recordedPixels;
+        bool bDataLoaded = fastFboReader.readToPixels(canvas.fbo, recordedPixels, ofGetImageTypeFromGLType(glFormat));
+#           else
+        ofPixels recordedPixels;
+        canvas.fbo.readToPixels(recordedPixels);
+        bDataLoaded = true;
+#           endif
+        if(bDataLoaded){
+            ndiVideoSend.send(std::move(recordedPixels));
+        }
+        else {
+            ofLogVerbose("Couldn't read pixels from FBO ! Skipping an NDI frame !");
+        }
+    } // bSendVideo
+#       else
+    static_assert (false, "Unimplemented !");
+    // todo !
+#       endif
+#   endif // ofxSA_NDI_SENDER_LEADEDGE
 #endif
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
     TS_STOP("Outputs and recording");
@@ -715,7 +759,7 @@ void ofxSimpleApp::recordCanvasFrame(){
         }
 	}
 }
-#include <future> // for async
+
 void ofxSimpleApp::recordCanvasPixels(const ofPixels& _pixels){
 #if ofxSA_NEWFRAME_FLAGGER == 1
     if(bRecordersOnlyPublishNewFrames && !isNewFrame()) return;
@@ -963,7 +1007,8 @@ void ofxSimpleApp::windowResized(int w, int h){
 //}
 
 // Dummy declaration
-void ofxSimpleApp::audioRequested(float * output, int bufferSize, int nChannels){}
+//void ofxSimpleApp::audioRequested(float * output, int bufferSize, int nChannels){}
+void ofxSimpleApp::audioOut(ofSoundBuffer& buf){}
 
 
 void ofxSimpleApp::loadImGuiTheme(){
@@ -1163,6 +1208,11 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 if(ImGui::Button("Apply")){
                     ImGui::CloseCurrentPopup();
                     ofSetFrameRate(newTargetFPS);
+#ifdef ofxSA_NDI_SENDER_ENABLE
+#   if ofxSA_NDI_SENDER_LEADEDGE == 1
+                    ndiSender.SetFrameRate(newTargetFPS);
+#   endif
+#endif
 
                     // Sync
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
@@ -1580,18 +1630,63 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
 #   ifdef ofxSA_NDI_SENDER_ENABLE
             if(ImGui::BeginMenu("NDI Sender")){
+#   	if ofxSA_NDI_SENDER_LEADEDGE == 1
                 ImGui::SeparatorText("Server");
                 bool bNdiEnabled = ndiSender.SenderCreated();
                 ImGuiEx::ofxNdiSenderSetup(ndiSender);
-#if ofxSA_NEWFRAME_FLAGGER == 1
+#           if ofxSA_NEWFRAME_FLAGGER == 1
                 ImGui::Checkbox("Only publish new frames", &bRecordersOnlyPublishNewFrames);
-#endif
+#           endif
 
                 ImGui::SeparatorText("Runtime settings");
                 ImGuiEx::ofxNdiSenderSettings(ndiSender);
 
                 ImGui::SeparatorText("NDI Status");
                 ImGuiEx::ofxNdiSenderStatusText(ndiSender);
+#       else
+                ImGui::SeparatorText("Server");
+                bool bNdiEnabled = ndiSender.isSetup();
+
+
+                if(ImGui::Checkbox("Enable NDI output", &bNdiEnabled)){
+                }
+
+                auto name = ndiSender.getSourceName();
+                if(name){
+                    ImGui::Text("Server Identity");
+                    ImGui::Text("IP   : %s", name->p_ip_address?name->p_ip_address:" - unknown -");
+                    ImGui::Text("Name : %s", name->p_ndi_name);
+                    ImGui::Text("Url  : %s", name->p_url_address?name->p_url_address:" - unknown -");
+                }
+                else {
+                    ImGui::Text("No server identity yet !");
+                }
+
+                ImGui::BeginDisabled();
+                ImGui::Checkbox("Synced Video", &ndiClockVideo);
+                ImGui::Checkbox("Synced Audio", &ndiClockAudio);
+                bool bNdiConnected = ndiSender.isConnected(-1);
+                ImGui::Checkbox("Client Connected", &bNdiConnected);
+                ImGui::EndDisabled();
+
+                // Causes crashed if enabled.
+//                bool bNdiAsync = ndiVideoSend.isAsync();
+//                if(ImGui::Checkbox("Asynchronous", &bNdiAsync)){
+//                    ndiVideoSend.setAsync(bNdiAsync);
+//                }
+
+                static int fps = 60;
+                ImGui::InputInt("FPS", &fps);
+                if(ImGui::IsItemDeactivatedAfterEdit()){
+                   ndiVideoSend.setFrameRate(fps, 1);
+                }
+                ImGui::SameLine(); ImGui::TextDisabled("(cached)");
+
+                ImGui::Checkbox("Send Video", &bSendVideo);
+                ImGui::Checkbox("Send Audio", &bSendAudio);
+
+
+#       endif // ofxSA_NDI_SENDER_LEADEDGE
 
                 ImGui::EndMenu();
             }
@@ -2431,6 +2526,7 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     pugi::xml_node ndiSettingsNode = ofxPugiXml::getOrAppendNode(_node, "ndi-output");
     ret *= (bool) ndiSettingsNode;
     if(ndiSettingsNode){
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
         const bool enabled = this->ndiSender.SenderCreated();
         ret *= ofxPugiXml::setNodeAttribute(ndiSettingsNode, "enabled", enabled);
         ret *= ofxPugiXml::setNodeAttribute(ndiSettingsNode, "name", ndiSender.GetSenderName().c_str());
@@ -2445,13 +2541,16 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
             ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "progressive", ndiSender.GetProgressive());
             ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "clocked", ndiSender.GetReadback());
         }
-    }
+#   else
+    // todo !
+#   endif // ofxSA_NDI_SENDER_LEADEDGE
 #endif
+    }
 
     // todo: Recording settings
 #ifdef ofxSA_TEXRECORDER_ENABLE
     pugi::xml_node texRecorderSettingsNode = ofxPugiXml::getOrAppendNode(_node, "texture_recorder");
-    $ret *= texRecorderSettingsNode.append_child("recorder_mode").text().set(texRecorderMode);
+    ret *= texRecorderSettingsNode.append_child("recorder_mode").text().set(texRecorderMode);
 #endif
 
     // Quad wrapping
@@ -2570,6 +2669,7 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
     pugi::xml_node ndiSettingsNode = _node.child("ndi-output");
     ret *= (bool) ndiSettingsNode;
     if(ndiSettingsNode){
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
         static std::string nameTmp = { ofxSA_APP_NAME }; // note: needs to remain as ofxNDI only stores the ptr !
         bool enabled = false;
         ret *= ofxPugiXml::getNodeAttributeValue(ndiSettingsNode, "enabled", enabled);
@@ -2604,14 +2704,16 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
         }
 
         if(enabled){
-#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+#       ifdef ofxSA_CANVAS_OUTPUT_ENABLE
             ret *= ndiSender.CreateSender(nameTmp.c_str(), canvas.getCanvasWidth(), canvas.getCanvasHeight());
-#   else
+#       else
             ret *=  ndiSender.CreateSender(nameTmp.c_str(), ofGetWindowWidth(), ofGetWindowHeight());
-#   endif
-        }
+#       endif
+#   else
+        // todo !
+#   endif // ofxSA_NDI_SENDER_LEADEDGE
     }
-#endif
+#endif // ofxSA_NDI_SENDER_ENABLE
 
     // todo: Recording settings
 #ifdef ofxSA_TEXRECORDER_ENABLE
@@ -2674,11 +2776,23 @@ bool ofxSimpleApp::onTimelineStop(){
 
 #ifdef ofxSA_NDI_SENDER_ENABLE
 bool ofxSimpleApp::startNdi(){
-#   ifdef ofxSA_CANVAS_OUTPUT_ENABLE
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
+#       ifdef ofxSA_CANVAS_OUTPUT_ENABLE
     const bool ndiCreated = ndiSender.CreateSender(ofxSA_APP_NAME, canvas.getCanvasWidth(), canvas.getCanvasHeight());
-#   else
+#       else
     const bool ndiCreated = ndiSender.CreateSender(ofxSA_APP_NAME, ofGetWindowWidth(), ofGetWindowHeight());
-#   endif
+#       endif
+#   else
+    const bool ndiCreated = ndiSender.setup(ofxSA_APP_NAME, "", ndiClockVideo, ndiClockAudio);
+    if(ndiCreated){
+        ndiVideoSend.setup(ndiSender);
+        ndiAudioSend.setup(ndiSender);
+        ndiVideoSend.setFrameRate(ofGetTargetFrameRate(), 1);
+    }
+    else {
+        ofLogError("ofxNDI couldn't setup a sender !");
+    }
+#   endif // ofxSA_NDI_SENDER_LEADEDGE
     if(!ndiCreated){
         ofLogWarning("ofxSimpleApp::Setup()") << "Couldn't create NDI server !";
     }
@@ -2686,7 +2800,11 @@ bool ofxSimpleApp::startNdi(){
 }
 
 void ofxSimpleApp::stopNdi(){
+#	if ofxSA_NDI_SENDER_LEADEDGE == 1
     ndiSender.ReleaseSender();
+#   else
+
+#   endif
 }
 #endif
 
