@@ -38,7 +38,7 @@
 #		include "ofxNDISender.h"
 #		include "ofxNDISendStream.h"
 //#		include "ofxNDIGenlock.h"
-#		include "ofxNDITextureSender.h"
+//#		include "ofxNDITextureSender.h"
 #	endif
 #endif
 
