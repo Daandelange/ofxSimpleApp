@@ -1651,21 +1651,36 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 if(ImGui::Checkbox("Enable NDI output", &bNdiEnabled)){
                 }
 
-                auto name = ndiSender.getSourceName();
-                if(name){
-                    ImGui::Text("Server Identity");
-                    ImGui::Text("IP   : %s", name->p_ip_address?name->p_ip_address:" - unknown -");
-                    ImGui::Text("Name : %s", name->p_ndi_name);
-                    ImGui::Text("Url  : %s", name->p_url_address?name->p_url_address:" - unknown -");
-                }
-                else {
-                    ImGui::Text("No server identity yet !");
-                }
+                // Crashes app so disabled
+//                auto name = ndiSender.getSourceName();
+//                #ifdef TARGET_OS_MAC
+//                if(name!=nullptr){
+//                    ImGui::Text("Server Identity");
+//                    ImGui::Text("IP   : %s", name->p_ip_address?name->p_ip_address:" - unknown -");
+//                    ImGui::Text("Name : %s", name->p_ndi_name);
+//                    ImGui::Text("Url  : %s", name->p_url_address?name->p_url_address:" - unknown -");
+//                }
+//                else {
+//                    ImGui::Text("No server identity yet !");
+//                }
+//                #else
+//                    // To be tested on linux.... name seems to be a different type !
+//                    ImGui::Text("Server Identity");
+//                    ImGui::Text("IP   : %s", name.p_ip_address);
+//                    ImGui::Text("Name : %s", name.p_ndi_name);
+//                    ImGui::Text("Url  : %s", name.p_url_address);
+//                #endif
 
                 ImGui::BeginDisabled();
-                ImGui::Checkbox("Synced Video", &ndiClockVideo);
-                ImGui::Checkbox("Synced Audio", &ndiClockAudio);
-                bool bNdiConnected = ndiSender.isConnected(-1);
+                if(ImGui::Checkbox("Clock Video", &ndiClockVideo)){
+                    // Fails !
+//                    ndiSender.setup(ofxSA_APP_NAME, "", ndiClockVideo, ndiClockAudio);
+                }
+                if(ImGui::Checkbox("Clock Audio", &ndiClockAudio)){
+                    //ndiSender.setup(ofxSA_APP_NAME, "", ndiClockVideo, ndiClockAudio);
+                }
+
+                bool bNdiConnected = ndiSender.isConnected(1);
                 ImGui::Checkbox("Client Connected", &bNdiConnected);
                 ImGui::EndDisabled();
 

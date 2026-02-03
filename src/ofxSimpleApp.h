@@ -281,8 +281,8 @@ protected:
 //		ofxNDISendAudio ndiAudioSend;
 		ofxNDISendAudio ndiAudioSend;
 //		ofxNDIGenlock ndiLock;
-		bool ndiClockVideo = true;
-		bool ndiClockAudio = true;
+		bool ndiClockVideo = false;
+		bool ndiClockAudio = false;
 		bool bSendAudio = false;
 		bool bSendVideo = false;
 #	endif
