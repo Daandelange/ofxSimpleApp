@@ -2557,10 +2557,11 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
             ret *= ofxPugiXml::setNodeAttribute(runtimeSettingsNode, "clocked", ndiSender.GetReadback());
         }
 #   else
-    // todo !
+        // todo !
 #   endif // ofxSA_NDI_SENDER_LEADEDGE
-#endif
     }
+#endif
+
 
     // todo: Recording settings
 #ifdef ofxSA_TEXRECORDER_ENABLE
