@@ -32,7 +32,7 @@ You need the following addons for running the default configuration :
 - [jvcleave/ofxImGui/develop](https://github.com/jvcleave/ofxImGui/tree/develop)
 
 Depending on your configuration's opt-ins, you'll need some extra addons with your project.  
-Please refer to the [Configuration](./#Configuration) section below for correspondance with the config flags.
+Please refer to the [Configuration](#Configuration) section below for correspondance with the config flags.
 
 - [leadedge/ofxNdi](https://github.com/leadedge/ofxNDI/) + [ofxImGuiAddonWidgets](https://github.com/Daandelange/ofxImGuiAddonWidgets)
 - [astellato/ofxSyphon](https://github.com/astellato/ofxSyphon)
@@ -57,10 +57,11 @@ Now you're ready to go for the minimal experience !
 # Configuration
 
 Basically you need to configure which features you'd like to use by enabling their respective config flags, and sometimes add the required addons to your project.
- - Option 1 : Put the required flags into a file `ofxSaUserConfig.h` and tell ofxSA where to find it by adding one single project macro define `ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig'`.
- - Option 2 : Add the required flags to your project compilation defines.
-Please refer to the examples for detailed options.
 
+ - **Option 1** : Put the required flags into a file `ofxSaUserConfig.h` and tell ofxSA where to find it by adding one single project macro define `ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig'`.
+ - **Option 2** : Add the required flags to your project compilation defines one by one.
+
+Please refer to the examples for detailed options.
 
 |Config flag|Required ofxAddons|Description|
 |-----------|------------------|-----------|
@@ -93,6 +94,18 @@ Please refer to the examples for detailed options.
 | ofxSA_QUADWRAPPER_ENABLE                      | ofxQuadWarper | Enables quad wrapping on the output canvas. |
 | ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW   | | Adds a 2ndary, standalone output window |
 
+
+### ofxSaUserConfig
+
+The ProjectGenerator erases project config settings / defines. For this reason, it's recommended to set them in a separate file (option 1).
+After using the PG on a project or example, you have to tell your compiler where this config file is by defining a macro constant : `ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig` will load `ofxSAUserConfig.h`.
+Refer to `example-advanced/src/ofxSAUserConfig.h` for a template.
+
+In XCode projects add these to the "Other C Flags" and "Other C++ Flags" in your project settings :
+````txt
+-DofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig
+-DofxAddons_ENABLE_IMGUI
+````
 
 # Examples
 
