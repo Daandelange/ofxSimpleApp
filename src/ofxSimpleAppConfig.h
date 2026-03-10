@@ -208,6 +208,11 @@
 #       pragma message "ofxSA : You choose to use a custom theme, but you forgot to define its class !"
 #       undef ofxSA_GUI_THEME_CUSTOM_FILE
 #   endif
+    // Check for the file inclusion
+#   if (__cplusplus >= 201703L) && !__has_include(ofxSA_GUI_THEME_CUSTOM_FILE)
+#       pragma message "ofxSA : The custom imgui theme file does not exist in the compilation filesystem ! (404)"
+#       undef ofxSA_GUI_THEME_CUSTOM_FILE
+#   endif
 #else
 #   undef ofxSA_GUI_THEME_CUSTOM_NAME
 #   undef ofxSA_GUI_THEME_CUSTOM_CLASS
