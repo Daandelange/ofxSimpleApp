@@ -15,9 +15,11 @@ void ofApp::setup(){
     ofAddListener(ofxSA_TIMELINE_GET(timeline).onPause, this, &ofApp::onTimelinePause);
 #endif
 
+#ifdef ofxSA_BACKGROUND_CLEARING
     bEnableClearing = false;
     bEnableFading = true;
     bgFadeColor = ofFloatColor(1.0/255, 2.0/255, .5, 0.0);
+#endif
 
     // Start with a non-transparent bg
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
@@ -163,7 +165,9 @@ void ofApp::drawGui(){
         ImGui::Spacing();
         ImGui::SeparatorText("Debug");
         ImGui::Checkbox("Show time info", &bDisplayTimeInfo);
+#ifdef ofxSA_TIMELINE_ENABLE
         ImGui::Checkbox("Visualise timeline variables.", &bVisualiseTimelineVariables);
+#endif
 
     }
     ImGui::End();

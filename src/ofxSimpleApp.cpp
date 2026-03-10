@@ -1496,7 +1496,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 static char newFileName[256];
                 if(ImGui::InputText("Target name", newFileName, IM_ARRAYSIZE(newFileName), ImGuiInputTextFlags_EnterReturnsTrue)){
                     recordingTargetName = newFileName;
-                    std::cout << "NewName=" << recordingTargetName << std::endl;
+                    //std::cout << "NewName=" << recordingTargetName << std::endl;
                 }
                 if(!ImGui::IsItemActive()){ // checkme : and just been disabled ? or wasActive...
                     std::strncpy(newFileName, recordingTargetName.c_str(), IM_ARRAYSIZE(newFileName)-1);
@@ -2708,7 +2708,9 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
             ret *= ofxPugiXml::getNodeAttributeValue(runtimeSettingsNode, "clocked", clocked);
         }
 
-        if(this->ndiSender.SenderCreated()) this->stopNdi();
+        if(this->ndiSender.SenderCreated()){
+            this->stopNdi();
+        }
 
         if(runtimeSettingsNode){
             ndiSender.SetProgressive(progressive);
@@ -2725,7 +2727,8 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
 #       else
             ret *=  ndiSender.CreateSender(nameTmp.c_str(), ofGetWindowWidth(), ofGetWindowHeight());
 #       endif
-#   else
+        }
+#   else // ofxSA_NDI_SENDER_LEADEDGE
         // todo !
 #   endif // ofxSA_NDI_SENDER_LEADEDGE
     }
