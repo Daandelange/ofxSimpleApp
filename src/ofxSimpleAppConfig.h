@@ -2,9 +2,15 @@
 
 // To get OF constants
 #include <cassert>
+#include <type_traits>
 #include "ofConstants.h"
 #include "ofxSimpleAppConstants.h"
 
+#if (__cplusplus >= 201703L)
+#define ofxSA_HAS_INCLUDE(x) __has_include(x)
+#else
+#define ofxSA_HAS_INCLUDE(x) false
+#endif
 // - - - - -
 // User Config
 // Always load user config first, then write defaults.
@@ -16,18 +22,31 @@
 #ifdef ofxSA_CONFIG_HEADER_FILE
     // Use c++ 17 features ?
 #   if (__cplusplus >= 201703L) && __has_include( ofxSA_VAR_TO_INCLUDE_HEADER(ofxSA_CONFIG_HEADER_FILE) ) // ofxSA_CONFIG_HEADER_FILE ".h")
-#       pragma message "ofxSA : Loading & sanitising custom config file `ofxSA_CONFIG_HEADER_FILE` !"
+#       ifdef DEBUG
+#          pragma message "ofxSA : Loading & sanitising custom config file `ofxSA_CONFIG_HEADER_FILE` !"
+#       endif
 #       include ofxSA_VAR_TO_INCLUDE_HEADER(ofxSA_CONFIG_HEADER_FILE)
+#   elif (__cplusplus >= 201703L) && ofxSA_HAS_INCLUDE( ofxSA_CONFIG_HEADER_FILE )
+#       ifdef DEBUG
+#          pragma message "ofxSA : Loading & sanitising custom config file `ofxSA_CONFIG_HEADER_FILE` !"
+#       endif
+#       include ofxSA_CONFIG_HEADER_FILE
 #   elif (__cplusplus >= 201703L) && __has_include("ofxSAUserConfig.h")
-#       pragma message "ofxSA : Loading & sanitising custom config file `ofxSAUserConfig.h` !"
+#       ifdef DEBUG
+#           pragma message "ofxSA : Loading & sanitising custom config file `ofxSAUserConfig.h` !"
+#       endif
 #       include "ofxSAUserConfig.h"
     // String empty ? --> Use default file name filename
 #   elif (ofxSA_APPENDONE_I(ofxSA_CONFIG_HEADER_FILE) == 1)
-#       pragma message "ofxSA : Loading & sanitising custom config file !"
+#       ifdef DEBUG
+#           pragma message "ofxSA : Loading & sanitising custom config file !"
+#       endif
 #       include "ofxSAUserConfig.h"
 #   else
     // Or use the define as a file name to include
-#       pragma message "ofxSA : Loading & sanitising custom config file with custom name !"
+#       ifdef DEBUG
+#           pragma message "ofxSA : Loading & sanitising custom config file with custom name !"
+#       endif
 //#       include ofxSA_STRINGIFY(ofxSA_CONFIG_HEADER_FILE.h)
 #       include "ofxSAUserConfig.h"
 #   endif

@@ -21,3 +21,8 @@
 #define ofxSA_VAR_TO_INCLUDE_HEADER(x) ofxSA_STRINGIFY(ofxSA_APPEND_H(x))
 #define ofxSA_APPENDONE_I(x) x##1
 #define ofxSA_APPENDONE(x) ofxSA_APPENDONE_I(x)
+#define ofxSA_ASSERT_INHERITS(DerivedType, BaseType) \
+    static_assert(                             \
+        std::is_base_of<BaseType, DerivedType>::value, \
+        #DerivedType " must inherit from " #BaseType   \
+    )
