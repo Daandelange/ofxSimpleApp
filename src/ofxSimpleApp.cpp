@@ -1306,7 +1306,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             const bool bExists = ofFile(savePath+saveName).exists();
             if(!bExists) ImGui::BeginDisabled();
             if( ImGui::MenuItem( "Load", SHORTCUT_FUNC "+L" ) ){
-                loadXmlSettings();
+                if(!bExists) loadXmlSettings();
             }
             if(!bExists) ImGui::EndDisabled();
 
@@ -1319,37 +1319,43 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 reloadFolder=false;
                 checkNewFileName=true;
             }
-            static char newFileName[128];
+            static char newFileNameInput[128];
 
             if(checkNewFileName){
-                // Load initial value ?
-                if(strlen(newFileName)==0){
-                    saveName.copy(newFileName, IM_ARRAYSIZE(newFileName));
+                // Load initial value ? (or re-init when empty)
+                if(strlen(newFileNameInput)==0){
+                    saveName.copy(newFileNameInput, IM_ARRAYSIZE(newFileNameInput));
                 }
-                std::string baseName=newFileName;
-                auto extensionPos = baseName.find_last_of(".");
-                if(extensionPos==baseName.npos){
+
+                std::string baseName=newFileNameInput;
+
+                // Remove & detect extension
+                auto extensionPos = baseName.find_last_of(".xml");
+                if(extensionPos!=baseName.npos){
+                    extensionPos-=strlen(".xml")-1; // returned pos is last char of matched str
                     baseName = baseName.substr(0, extensionPos);
                 }
 
-                auto incrementPos = baseName.find_last_of("_");
+                // Remove & detect incrementer
+                auto incrementPos = baseName.find_last_of("_", extensionPos);
                 unsigned int increment=0;
                 if(incrementPos<extensionPos){
                     auto incrementStrVal = baseName.substr(incrementPos+1, extensionPos);
                     increment=ofToInt(incrementStrVal);
-                    baseName = baseName.substr(0, incrementPos);
-                }
-                else {
-                    baseName = baseName.substr(0, extensionPos);
+                    if(increment>0){
+                        baseName = baseName.substr(0, incrementPos);
+                    }
                 }
 
                 // Ensure default name
                 if(baseName.empty()){
                     baseName = "Settings";
+                    increment = 0;
                 }
 
-                bool firstRun = true;
-                while(firstRun || ofFile(newFileName).exists()){
+                // Format a definitive name
+                static bool firstRun = true;
+                while(firstRun || ofFile(savePath + newFileNameInput).exists()){
                     std::string newName=baseName;
 
                     // Add next increment
@@ -1357,10 +1363,13 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                         newName += "_";
                         newName += ofToString(increment);
                     }
+
                     // Add extension
                     newName += ".xml";
-                    strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
-                    newName.copy(newFileName, IM_ARRAYSIZE(newFileName));
+
+                    // Clear & Copy
+                    strncpy(newFileNameInput, "\0", IM_ARRAYSIZE(newFileNameInput)-1);
+                    newName.copy(newFileNameInput, IM_ARRAYSIZE(newFileNameInput)-1);
 
                     // Increment
                     firstRun = false;
@@ -1375,7 +1384,10 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             if( ImGui::BeginMenu("Save as...") ){
                 ImGui::SeparatorText("As a new File");
 
-                if(ImGui::InputText("File Name", newFileName, IM_ARRAYSIZE(newFileName), ImGuiInputTextFlags_EnterReturnsTrue)){
+                if(ImGui::InputText("File Name", newFileNameInput, IM_ARRAYSIZE(newFileNameInput), ImGuiInputTextFlags_EnterReturnsTrue)){
+                    checkNewFileName = true;
+                }
+                if(ImGui::IsItemDeactivatedAfterEdit()){
                     checkNewFileName = true;
                 }
 
@@ -1383,21 +1395,29 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                     ImGui::SeparatorText("As an existing file...");
                     for(auto& file : saveDir){
                         if(ImGui::Selectable(file.getFileName().c_str(), false, ImGuiSelectableFlags_NoAutoClosePopups)){
-                            std::strncpy(newFileName, "\0", IM_ARRAYSIZE(newFileName)-1);
-                            file.getFileName().copy(newFileName, IM_ARRAYSIZE(newFileName));
+                            std::strncpy(newFileNameInput, "\0", IM_ARRAYSIZE(newFileNameInput)-1);
+                            file.getFileName().copy(newFileNameInput, IM_ARRAYSIZE(newFileNameInput));
                         }
                     }
                 }
 
                 ImGui::Dummy({5,5});
                 ImGui::Separator();
-                static bool bLoadNewFile;
-                ImGui::Checkbox("Save as a copy // todo", &bLoadNewFile);
+                static bool bSaveAsCopy;
+                bool doSave = ImGui::Button("Save");
+                ImGui::SameLine();
+                ImGui::Checkbox("As a copy", &bSaveAsCopy);
                 ImGuiEx::ShowHelpMarker("To continue working in the current file");
-                if(ImGui::Button("Save")){
-                    saveXmlSettings(newFileName);
+
+                if(doSave){
+                    saveXmlSettings(newFileNameInput);
                     ImGui::CloseCurrentPopup();
                     reloadFolder = true;
+
+                    // Set current doc to saved
+                    if(!bSaveAsCopy){
+                        saveName = newFileNameInput;
+                    }
                 }
                 ImGui::EndMenu();
             }
