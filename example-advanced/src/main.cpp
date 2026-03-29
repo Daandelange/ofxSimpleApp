@@ -1,15 +1,8 @@
 #include "ofMain.h"
 #include "ofApp.h"
+#include "ofxSimpleAppUtils.h"
 
 //========================================================================
 int main( ){
-
-	ofGLWindowSettings settings;
-	settings.setGLVersion(4,1);
-
-	auto window = ofCreateWindow(settings);
-
-	ofRunApp(window, make_shared<ofApp>());
-	ofRunMainLoop();
-
+    return ofxSimpleAppGenericMain<ofApp>();
 }

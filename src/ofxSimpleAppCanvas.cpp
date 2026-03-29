@@ -17,10 +17,10 @@ const std::pair<GlSampleMode_, const char*> glSampleModes[2] = {
 
 const char* glSampleModeGetName(GlSampleMode_ _mode ) {
     return getItemFromPairArray(_mode, glSampleModes);
-    for(const auto& mode : glSampleModes){
-        if(mode.first==_mode) return mode.second;
-    }
-    return "unknown";
+//    for(const auto& mode : glSampleModes){
+//        if(mode.first==_mode) return mode.second;
+//    }
+//    return "unknown";
     //switch(_mode){
     //    case GlSampleMode_Linear:
     //        return "Linear";

@@ -9,15 +9,15 @@
 #include "ofxImGuiLoggerChannel.h"
 
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
-#include "ofxTimeMeasurements.h"
+#	include "ofxTimeMeasurements.h"
 #endif
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-#ifdef ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW
-#include "ofxSimpleAppCanvas.h"
-#include "ofAppGLFWWindow.h"
-#include "GLFW/glfw3.h"
-#endif
+#	ifdef ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW
+#		include "ofxSimpleAppCanvas.h"
+#		include "ofAppGLFWWindow.h"
+#		include "GLFW/glfw3.h"
+#	endif
 #endif
 
 //void ofDrawBitMapStringHighlight(const std::string& _string, const ofRectangle& _rect){

@@ -23,9 +23,14 @@ void ofApp::setup(){
 
     // Start with a non-transparent bg
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
-    canvas.fbo.begin();
-    ofClear(0,0,0,255);
-    canvas.fbo.end();
+    if(canvas.fbo.isAllocated()){
+        canvas.fbo.begin();
+        ofClear(0,0,0,255);
+        canvas.fbo.end();
+    }
+    else {
+        ofLogError("ofApp::setup") << "Couldn't erase fbo, it was not setup correctly !";
+    }
 #endif
 
     // Complete message

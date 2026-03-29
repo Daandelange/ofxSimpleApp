@@ -58,8 +58,8 @@ Now you're ready to go for the minimal experience !
 
 Basically you need to configure which features you'd like to use by enabling their respective config flags, and sometimes add the required addons to your project.
 
- - **Option 1** : Put the required flags into a file `ofxSaUserConfig.h` and tell ofxSA where to find it by adding one single project macro define `ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig'`.
- - **Option 2** : Add the required flags to your project compilation defines one by one.
+ - **Option 1** : Put the required flags into a file `ofxSaUserConfig.h` and tell ofxSA where to find it (_see below_).
+ - **Option 2** : Add the required opt-in flags to your project compilation defines one by one.
 
 Please refer to the examples for detailed options.
 
@@ -100,11 +100,26 @@ Please refer to the examples for detailed options.
 The ProjectGenerator erases project config settings / defines. For this reason, it's recommended to set them in a separate file (option 1).
 After using the PG on a project or example, you have to tell your compiler where this config file is by defining a macro constant : `ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig` will load `ofxSAUserConfig.h`.
 Refer to `example-advanced/src/ofxSAUserConfig.h` for a template.
+Alternative: `ofxSA_CONFIG_HEADER_FILE="ofxSAUserConfig.h"`. (works better in XCODE)
 
-In XCode projects add these to the "Other C Flags" and "Other C++ Flags" in your project settings :
+In **XCode projects** add these to the "Other C Flags" and "Other C++ Flags" in your project settings :
 ````txt
--DofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig
+-DofxSA_CONFIG_HEADER_FILE="ofxSAUserConfig.h"
 -DofxAddons_ENABLE_IMGUI
+````
+
+In **Qt-Creator**, add this to your `.qbs`
+````txt
+of.defines: [
+   'ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig',
+   'ofxAddons_ENABLE_IMGUI', // if using ofxImGui
+],
+````
+
+In **Makefiles**, add this to `config.make` :
+````txt
+PROJECT_DEFINES = ofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig
+PROJECT_DEFINES += ofxAddons_ENABLE_IMGUI
 ````
 
 # Examples
