@@ -100,3 +100,12 @@
 #define ofxSA_NDI_SENDER_ENABLE
 
 #define ofxSA_QUADWRAPPER_ENABLE
+
+//#define ofxSA_CPPSKETCH_ENABLE
+#define ofxSA_CPPSKETCH_FORCE_DISABLE
+// Dirty code to grab ofApp.cpp next to this file
+#include <string_view>
+namespace ofxSA_CPPSKETCH {
+    constexpr std::string_view pathv = std::string_view(__FILE__ "/../ofApp.cpp");
+}
+#define ofxSA_CPPSKETCH_APPFILE (ofxSA_CPPSKETCH::pathv.data())

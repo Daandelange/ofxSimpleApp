@@ -20,6 +20,24 @@
 #	endif
 #endif
 
+#ifdef ofxSA_CPPSKETCH_ENABLE
+//  Preconfigure for the lazy
+#	ifndef OFXCPPSKETCH_CUSTOM_COMPILER_FLAGS
+#		define OFXCPPSKETCH_CUSTOM_COMPILER_FLAGS \
+            " -W"\
+            " -O0 -target x86_64-apple-macosx10.15-macho -pipe"\
+            " -fexceptions -fvisibility=default -Wno-unused-parameter -Werror=return-type"\
+            " -fPIC -DDEBUG -DGCC_HAS_REGEX"\
+            " -DofxSA_CONFIG_HEADER_FILE=ofxSAUserConfig -DofxAddons_ENABLE_IMGUI"
+#	endif
+#	ifndef OFXCPPSKETCH_CUSTOM_LINKER_FLAGS
+#		define OFXCPPSKETCH_CUSTOM_LINKER_FLAGS " "
+#	endif
+//#   define OF_ROOT "../.."; // Custom lib path
+#	include "ofxCppSketch.h"
+
+#endif
+
 //void ofDrawBitMapStringHighlight(const std::string& _string, const ofRectangle& _rect){
 //    ofDrawBitmapStringHighlight(_string, _rect.getTopLeft(),)
 //}
@@ -27,6 +45,46 @@
 //template<class ofAppClass>
 //int ofxSimpleAppGenericMain();
 
+// Helper to get a classname (TypeID(ClassName).name() to string)
+#ifdef ofxSA_CPPSKETCH_ENABLE // tmp only needed for this
+#include <string_view>
+#include <typeinfo>
+#include <cassert>
+#include <cxxabi.h>
+#include <cstdlib>
+
+template<class CLASS>
+constexpr std::string_view ofxSA_type_name_pretty() {
+#if defined(__clang__) || defined(__GNUC__)
+    constexpr std::string_view p = __PRETTY_FUNCTION__;
+    return p.substr(p.find("C = ") + 4, p.rfind(']') - p.find("C = ") - 4);
+#elif defined(_MSC_VER)
+    constexpr std::string_view p = __FUNCSIG__;
+    auto start = p.find("type_name_pretty<") + 17;
+    auto end   = p.rfind(">(void)");
+    auto view  = p.substr(start, end - start);
+    if (view.starts_with("class ")) view.remove_prefix(6);
+    if (view.starts_with("struct ")) view.remove_prefix(7);
+    return view;
+#else
+    return {}; // unsupported !
+#endif
+}
+template<class CLASS>
+std::string_view ofxSA_type_name() {
+#if defined(__GNUC__) || defined(__clang__)
+    // Try to demangle at runtime (most robust option)
+    static int status = -1;
+    static char* demangled = abi::__cxa_demangle(typeid(CLASS).name(), nullptr, nullptr, &status);
+    if (status == 0 && demangled)
+        return { demangled };
+#endif
+    // Compile-time pretty-function fallback
+    constexpr std::string_view name = ofxSA_type_name_pretty<CLASS>();
+    assert(!name.empty() && "type_name: unsupported compiler, cannot determine type name !");
+    return name;
+}
+#endif
 
 // You can use this main() function to quickly setup your app, or write your own one for more advanced usages.
 // Cannot separate definition and implementation because we cannot instantiate a template function womewhere else, and the ofApp class is unknown here. So we put the whole definition here and let users instantiate their classes on call.
@@ -52,13 +110,38 @@ int ofxSimpleAppGenericMain(){
 #endif
 
 	// Create App
-	auto app = std::make_shared<ofAppClass>();
+#ifdef ofxSA_CPPSKETCH_ENABLE
+#   ifdef ofxSA_CPPSKETCH_APPCLASS_STR
+    std::string className = ofxSA_CPPSKETCH_APPCLASS_STR;
+#   elif 0 && defined(ofxSA_CPPSKETCH_APPFILE)
+    std::string className;
+    constexpr std::string_view path { };//ofxSA_CPPSKETCH_APPFILE };
+    if(path.length()>0 && path.rfind('/')!=path.rfind('/').npos){
+        constexpr std::string_view classNameStr = path.substr(
+            path.rfind('/') + 1,
+            path.rfind('.') - path.rfind('/') - 1
+        );
+        classname = classNameStr;
+    }
+    else {
+        className = ofxSA_type_name<ofAppClass>().data();
+    }
+#   else
+    std::string className = ofxSA_type_name<ofAppClass>().data();
+#   endif
+    //assert(className.length()>0, "Please set ofxSA_CPPSKETCH_APPCLASS_STR !");
+    //std::cout << "ofxSA_CPPSKETCH_APPFILE = " << ofxSA_CPPSKETCH_APPFILE << std::endl;
+    std::string appFile = ofxSA_CPPSKETCH_APPFILE;
+    auto app = std::make_shared<ofxCppSketch>(!className.empty()?className.c_str():"ofApp", appFile.c_str());
+#else
+    auto app = std::make_shared<ofAppClass>();
+#endif // ofxSA_CPPSKETCH_ENABLE
 
 #ifdef ofxSA_CANVAS_OUTPUT_ENABLE
 #ifdef ofxSA_CANVAS_OUTPUT_EXTRA_STANDALONE_WINDOW
 	//if(extraCanvasOutputWindowPtr) ofAddListener(extraCanvasOutputWindowPtr->events().draw, &app.get()->canvas, &ofxSimpleAppCanvas::drawSecondaryMonitor);
 #endif
-#endif
+#endif // ofxSA_CANVAS_OUTPUT_ENABLE
 
 	// Run App
 	ofRunApp(window, app);

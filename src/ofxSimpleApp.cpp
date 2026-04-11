@@ -348,7 +348,7 @@ void ofxSimpleApp::draw(){
         flagNewFrame();
 #endif
     }
-#endif
+#endif // ofxSA_BACKGROUND_FADING
 
 #if defined(ofxSA_QUADWRAPPER_ENABLE) // && !defined(ofxSA_CANVAS_OUTPUT_ENABLE)
     if(quadWarper.bEnableQuadWarper){
@@ -1764,11 +1764,11 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 #       endif
 #   endif
 
+    #ifdef OFXIMGUI_DEBUG
                 ImGui::SeparatorText("ImGui Dev");
                 ImGui::Checkbox("Show ImGui Metrics", &bShowImGuiMetrics);
                 ImGui::Checkbox("Show ImGui Debug Window", &bShowImGuiDebugLog);
                 ImGui::Checkbox("Show ImGui Demo Window", &bShowImGuiDemo);
-    #ifdef OFXIMGUI_DEBUG
                 ImGui::Checkbox("Show ofxImGui Debug Window", &bShowofxImGuiDebugWindow);
     #endif
 #endif

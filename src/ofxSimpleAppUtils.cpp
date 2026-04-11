@@ -185,9 +185,14 @@ namespace ImGuiEx {
         }
 
         if(ImGui::IsItemActive() || ImGui::IsItemHovered()){
-            pos.x += 20;
-            ImGui::GetForegroundDrawList()->AddRectFilled(pos, pos+ImVec2(58.f, ImGui::GetFrameHeight()), ImGui::GetColorU32(ImGuiCol_Button, 1.f));
-            ImGui::GetForegroundDrawList()->AddText(pos+ImVec2(3,3), ImGui::GetColorU32(ImGuiCol_Text), id);
+            const char* textEnd = ImGui::FindRenderedTextEnd(id);
+            if(textEnd>id){
+                ImVec2 textSize = ImGui::CalcTextSize(id, textEnd);
+                const int margin = 3;
+                pos.x += 20;
+                ImGui::GetForegroundDrawList()->AddRectFilled(pos, pos+ImVec2(textSize.x+margin*2, textSize.y+margin*2), ImGui::GetColorU32(ImGuiCol_Button, 1.f));
+                ImGui::GetForegroundDrawList()->AddText(pos+ImVec2(margin,margin), ImGui::GetColorU32(ImGuiCol_Text), id, textEnd);
+            }
         }
         return ret;
     }

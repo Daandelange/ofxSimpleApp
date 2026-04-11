@@ -467,6 +467,37 @@
 #   endif
 #endif
 
+// ofxCppSketch support (experimental!)
+// Enable cppSketch in debug builds by default, for prototyping
+#if 0 && defined(ofxSA_CPPSKETCH_APPFILE) && !defined(ofxSA_CPPSKETCH_ENABLE) && !defined(ofxSA_CPPSKETCH_FORCE_DISABLE) && defined(DEBUG)
+#   define ofxSA_CPPSKETCH_ENABLE
+#endif
+#ifdef ofxSA_CPPSKETCH_ENABLE
+//  Check app class (optional)
+#   ifdef ofxSA_CPPSKETCH_APPCLASS
+#       include "ofBaseApp.h"
+            ofxSA_ASSERT_INHERITS(ofxSA_CPPSKETCH_APPCLASS, ofBaseApp)
+            //static_assert(std::is_base_of<ofxSA_CPPSKETCH_APPCLASS, MyClass>::value, "ofxSA_CPPSKETCH_APPCLASS must inherit from BaseClass");
+#   else
+//#       define ofxSA_CPPSKETCH_APPCLASS ofApp
+#   endif
+//  Ensure the str version is set (optional as we can compute it, on some compilers)
+#   if !defined(ofxSA_CPPSKETCH_APPCLASS_STR)
+#       ifdef ofxSA_CPPSKETCH_APPCLASS
+#           define ofxSA_CPPSKETCH_APPCLASS_STR ofxSA_STRINGIFY(ofxSA_CPPSKETCH_APPCLASS)
+#       else
+//        static_assert(false, "Error: You need to set ofxSA_CPPSKETCH_APPCLASS_STR when ofxSA_CPPSKETCH_ENABLE is defined !");
+#       endif
+#   endif
+
+//  Require ofxSA_CPPSKETCH_APPFILE (required)
+#   ifndef ofxSA_CPPSKETCH_APPFILE
+        static_assert(false, "Error: You need to set ofxSA_CPPSKETCH_APPFILE when ofxSA_CPPSKETCH_ENABLE is defined !");
+//#       pragma error "Error: You need to set ofxSA_CPPSKETCH_APPFILE when ofxSA_CPPSKETCH_ENABLE is defined !"
+#   endif
+#endif // ofxSA_CPPSKETCH_ENABLE
+
+
 // Todo :
 // - Optional : debugging disable, logging disable,
 // - App expiration date for distributing prototypes ?

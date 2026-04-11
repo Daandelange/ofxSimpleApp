@@ -124,7 +124,7 @@ PROJECT_DEFINES += ofxAddons_ENABLE_IMGUI
 
 # Examples
 
-- example-simple : The minmal beare bones of ofxSimpleApp.
+- example-simple : The minmal bare bones of ofxSimpleApp.
 - example-advanced : The full blown version of ofxSimpleApp using all opt-ins.
 
 # Alternative usage
