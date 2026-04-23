@@ -221,6 +221,13 @@ void ofxSimpleApp::setup(){
 	quadWarper.bEnableQuadWarper = false;
 #endif
 
+    // Grab global app data (latest save file name, etc.)
+#if ofxSA_ENABLE_GLOBAL_XML == 1
+    if(!loadGlobalAppSettingsDefaults()){
+        ofLogError("ofxSimpleApp::setup()") << "Could not restore global application settings on launch.";
+    }
+#endif
+
 	// Restore settings on launch
 	loadXmlSettings();
 
@@ -1410,14 +1417,14 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 ImGuiEx::ShowHelpMarker("To continue working in the current file");
 
                 if(doSave){
-                    saveXmlSettings(newFileNameInput);
+                    saveXmlSettings(newFileNameInput, !bSaveAsCopy);
                     ImGui::CloseCurrentPopup();
                     reloadFolder = true;
 
                     // Set current doc to saved
-                    if(!bSaveAsCopy){
-                        saveName = newFileNameInput;
-                    }
+                    // if(!bSaveAsCopy){
+                    //     setCurrentDocument(newFileNameInput);
+                    // }
                 }
                 ImGui::EndMenu();
             }
@@ -1441,6 +1448,13 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                         loadXmlSettings(file.getFileName());
                     }
                 }
+
+#if ofxSA_ENABLE_GLOBAL_XML == 1
+                ImGui::SeparatorText("Global App Settings");
+                if(ImGui::Button("Reload global settings")){
+                    loadGlobalAppSettingsDefaults();
+                }
+#endif
                 ImGui::EndMenu();
             }
             if(!bFolderExists) ImGui::EndDisabled();
@@ -2340,8 +2354,107 @@ ofRectangle ofxSimpleApp::getDocumentSize() const {
 #endif
 }
 
+#if ofxSA_ENABLE_GLOBAL_XML == 1
+#   if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
+pugi::xml_document ofxSimpleApp::getGlobalSaveDoc() const{
+    pugi::xml_document doc;
+    std::string globalPath = ofToDataPath(ofxSA_GLOBAL_XML_FILENAME, true);
+    if( ofFile(globalPath).exists() ){
+        pugi::xml_parse_result result = doc.load_file(globalPath.c_str());
+
+        if(!result){
+            ofLogWarning("ofxSimpleApp::getGlobalSaveDoc()") << "Pugi error loading the existing global settings file `" ofxSA_GLOBAL_XML_FILENAME "`. Error=" << result.description();
+        }
+    }
+    return doc;
+}
+
+bool ofxSimpleApp::saveGlobalSaveDoc(const pugi::xml_document& doc) const {
+    if(!doc) return false;
+    std::string globalPath = ofToDataPath(ofxSA_GLOBAL_XML_FILENAME, true);
+    return doc.save_file(globalPath.c_str());
+}
+
+bool ofxSimpleApp::loadGlobalAppSettings(const pugi::xml_node& _node){
+    // nothing to load :)
+    return true;
+}
+#   endif // ofxSA_XML_ENGINE_PUGIXML
+
+bool ofxSimpleApp::loadGlobalAppSettingsDefaults(){
+    bool ret = true;
+#   if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML 
+    {
+        pugi::xml_document doc = getGlobalSaveDoc();
+        if(doc && !doc.empty()){
+            pugi::xml_node ofxSaNode = doc.child("ofxSimpleAppGlobalAppData");
+            if(ofxSaNode){
+                // Restore save-file
+                pugi::xml_node openFileNode = ofxSaNode.child("latest-open-file");
+                if(openFileNode){
+                    pugi::xml_attribute openFileAttr = openFileNode.attribute("value");
+                    if(openFileAttr){
+                        saveName = openFileAttr.as_string(saveName.c_str());
+                        ofLogVerbose("ofxSimpleApp::loadGlobalAppSettingsDefaults()") << "Restored latest open document : `" << saveName << "`.";
+                    }
+                    else {
+                        ret = false;
+                    }
+                }
+                else {
+                    ret = false;
+                }
+                
+                // Let inheritance loading global settings
+                if(!loadGlobalAppSettings(ofxSaNode)){
+                    ret = false;
+                    ofLogError("ofxSimpleApp::loadGlobalAppSettingsDefaults()") << "Could not load application global settings.";
+                }
+            }
+            else {
+                ret = false;
+            }
+        }
+        else {
+            // fine, no doc = first launch
+        }
+    }
+#   else
+    // todo !!
+#   endif // ofxSA_XML_ENGINE_PUGIXML
+    return ret;
+}
+#endif // ofxSA_ENABLE_GLOBAL_XML
+
+void ofxSimpleApp::setCurrentDocument(std::string document){
+    // todo: Sanitize (must be without `this->savePath` included)
+
+    saveName = document;
+
+    // Save global app preferences
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
+#   if ofxSA_ENABLE_GLOBAL_XML == 1
+    // Important : don't erase existing data ! (if the user-app added some)
+    pugi::xml_document doc = getGlobalSaveDoc();
+    pugi::xml_node ofxSaNode = ofxPugiXml::getOrAppendNode(doc, "ofxSimpleAppGlobalAppData");
+    if(ofxSaNode){
+        pugi::xml_node openFileNode = ofxPugiXml::getOrAppendNode(ofxSaNode, "latest-open-file");
+        if(openFileNode){
+            pugi::xml_attribute openFileAttr = ofxPugiXml::getOrAppendAttribute(openFileNode, "value");
+            if(openFileAttr){
+                openFileAttr.set_value(saveName.c_str());
+                saveGlobalSaveDoc(doc);
+            }
+        }
+    }
+#   endif // ofxSA_ENABLE_GLOBAL_XML
+#else
+    // ofxXML : todo !
+#endif // ofxSA_XML_ENGINE_PUGIXML
+}
+
 // Xml settings from the ofxXml object
-bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
+bool ofxSimpleApp::loadXmlSettings(std::string _fileName, const bool bSetAsCurrentDoc){
     if(_fileName.empty()) _fileName = saveName;
     std::string path = savePath+_fileName;
     bool ret = true;
@@ -2422,6 +2535,9 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
 #endif
 
     if(ret){
+        if(bSetAsCurrentDoc){
+            setCurrentDocument(_fileName);
+        }
         ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Successfully loaded XML data from the document.";
     }
     else {
@@ -2433,11 +2549,11 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName){
 
 // Saving function
 //#include <typeinfo>
-bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
+bool ofxSimpleApp::saveXmlSettings(std::string _fileName, const bool bSetAsCurrentDoc){
     if(_fileName.empty()) _fileName = saveName;
     std::string path = savePath+_fileName;
 
-     bool success = true;
+    bool success = true;
 
     // Ensure save dir exists
     ofDirectory dir = ofDirectory(ofFilePath::getEnclosingDirectory(path, true));
@@ -2471,6 +2587,9 @@ bool ofxSimpleApp::saveXmlSettings(std::string _fileName){
     success = xml.saveFile(ofxSA_XML_FILENAME);
 #endif
     if(success){
+        if(bSetAsCurrentDoc){
+            setCurrentDocument(_fileName);
+        }
         ofLogNotice("ofxSimpleApp::saveXmlSettings()") << "Saved settings to `" << path << "`.";
         return true;
     }

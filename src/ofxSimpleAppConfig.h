@@ -204,13 +204,28 @@
 // Todo: A file to load by default ?
 // Todo: Split file extension apart ?
 #ifndef ofxSA_XML_FILENAME
-#   define ofxSA_XML_FILENAME "Settings.xml"
+#   define ofxSA_XML_FILENAME "Settings.xml" // default work-document xml filename (relative to ofxSA_XML_FOLDER )
 #endif
-// Folder for saving and loading multiple files
+// Folder for saving and loading multiple files (mostly session files)
 #ifndef ofxSA_XML_FOLDER
 //  Must have tailing slash !
-#   define ofxSA_XML_FOLDER "save_files/"
+#   define ofxSA_XML_FOLDER "save_files/" // (relative to data folder)
 #endif
+
+// App-level preferences
+#ifndef ofxSA_ENABLE_GLOBAL_XML
+    // Enable by default
+#   define ofxSA_ENABLE_GLOBAL_XML 1
+#endif
+#if ofxSA_ENABLE_GLOBAL_XML == 1
+    // Ensure savefile name is set
+#   ifndef ofxSA_GLOBAL_XML_FILENAME
+#       define ofxSA_GLOBAL_XML_FILENAME "ofxSimpleAppGlobalSettings.xml" // global app-level xml filename (relative to data folder)
+#   endif
+#endif
+
+
+
 
 
 // - - - - -
@@ -328,7 +343,7 @@
     // Only allow on osx platforms
 #   ifndef TARGET_OSX
 #       pragma message "Error: ofxSA_SYPHON_OUTPUT is only allowed on macos, disabling it !"
-//static_assert (true, "Error: ofxSA_SYPHON_OUTPUT is only allowed on macos !");
+//static_assert (false, "Error: ofxSA_SYPHON_OUTPUT is only allowed on macos !");
 #       undef ofxSA_SYPHON_OUTPUT
 #   endif
 //  Default name length

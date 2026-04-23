@@ -109,6 +109,9 @@ class ofxSimpleApp : public ofBaseApp {
 //		virtual void audioRequested(float * output, int bufferSize, int nChannels) override;
 		virtual void audioOut(ofSoundBuffer& buf) override;
 
+		// Updates the current open savefile
+		void setCurrentDocument(std::string doc=ofxSA_XML_FILENAME);
+
 protected:
         // Internals
         bool bExitOnNextUpdate = false;
@@ -160,9 +163,19 @@ protected:
 		ofxXmlSettings xml; // Todo: Move away from this to use PugiXML (fast, multiplatform, great API). TinyXML is very slow.
 		virtual bool populateXmlSettings() = 0;
 		virtual bool retrieveXmlSettings() = 0;
-#endif
-		bool loadXmlSettings(std::string _fileName = "");
-		bool saveXmlSettings(std::string _fileName = "");
+#endif // ofxSA_XML_ENGINE
+
+#if ofxSA_ENABLE_GLOBAL_XML == 1
+#	if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
+		pugi::xml_document getGlobalSaveDoc() const;
+		bool saveGlobalSaveDoc(const pugi::xml_document& doc) const;
+		virtual bool loadGlobalAppSettings(const pugi::xml_node& _node);
+#	endif // ofxSA_ENABLE_GLOBAL_XML
+		bool loadGlobalAppSettingsDefaults();
+#endif // ofxSA_ENABLE_GLOBAL_XML
+
+		bool loadXmlSettings(std::string _fileName = "", bool setAsCurrentDoc=true);
+		bool saveXmlSettings(std::string _fileName = "", bool setAsCurrentDoc=true);
 		const std::string savePath = ofxSA_XML_FOLDER;
 		std::string saveName = ofxSA_XML_FILENAME;
 

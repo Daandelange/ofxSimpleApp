@@ -70,6 +70,8 @@ Please refer to the examples for detailed options.
 | **ofxSA_XML_ENGINE=ofxSA_XML_ENGINE_PUGIXML** | ofxPugiXML | Use libPugiXML as storage engine for saving sessions. |
 | ofxSA_XML_FILENAME                            | | Default filename for loading and saving sessions. |
 | ofxSA_XML_FOLDER                              | | Folder where all session XML files are located. |
+| ofxSA_GLOBAL_XML_FILENAME                     | | Default filename for loading and saving global application settings. |
+| ofxSA_ENABLE_GLOBAL_XML                       | ofxPugiXml | To enable a global app settings savefile. Default=1, set to 0 to disable.  |
 | **ofxSA_SYPHON_OUTPUT**                       | ofxSyphon | Outputs the canvas/ofAppWindow to Syphon. Macos only. |
 | ofxSA_SYPHON_NAME_MAXLEN                      | | Max length of a Syphon server. (verbose) |
 | **ofxSA_CANVAS_OUTPUT_ENABLE**                | _None_ | Enables an fbo for rendering content, with GUI navigation and export/output. |
@@ -124,7 +126,7 @@ PROJECT_DEFINES += ofxAddons_ENABLE_IMGUI
 
 # Examples
 
-- example-simple : The minmal bare bones of ofxSimpleApp.
+- example-simple : The minmal beare bones of ofxSimpleApp.
 - example-advanced : The full blown version of ofxSimpleApp using all opt-ins.
 
 # Alternative usage
