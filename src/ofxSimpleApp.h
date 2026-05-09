@@ -111,6 +111,7 @@ class ofxSimpleApp : public ofBaseApp {
 
 		// Updates the current open savefile
 		void setCurrentDocument(std::string doc=ofxSA_XML_FILENAME);
+		int getFps() const;
 
 protected:
         // Internals
@@ -128,6 +129,8 @@ protected:
 #endif
         bool bShowImGuiDebugLog = false;
 		float FPSHistory[ofxSA_FPS_HISTORY_SIZE];
+		int appFps = ofxSA_FPS_CAP;
+		
 		static const int curYear;
 		static ofxImGui::BaseTheme* imguiTheme;
         static unsigned int themeID;

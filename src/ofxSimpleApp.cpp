@@ -91,9 +91,7 @@ void ofxSimpleApp::setup(){
 	// OF environment
 	ofSetEscapeQuitsApp(false);
 	ofSetVerticalSync(true);
-#if defined(ofxSA_FPS_CAP) && ofxSA_FPS_CAP != 0
-	ofSetFrameRate(ofxSA_FPS_CAP);
-#endif
+	ofSetFrameRate(appFps);
 
 #ifdef ofxSA_TIME_MEASUREMENTS_ENABLE
 	//specify where the widget is to be drawn
@@ -1203,7 +1201,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             ImGui::Dummy({1,10});
             ImGui::SeparatorText("Runtime");
             //ImGui::Indent();
-            ImGui::Text("FPS        : %.0f (target: %.0f)", ofGetFrameRate(), ofGetTargetFrameRate() );
+            ImGui::Text("FPS        : %.0f (target: %.0f, app:%i)", ofGetFrameRate(), ofGetTargetFrameRate(), appFps );
             ImGui::SameLine();
             static int newTargetFPS = ofGetTargetFrameRate();
             if(ImGui::Button("Change##fps")){
@@ -1214,6 +1212,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
                 ImGui::InputInt("FPS", &newTargetFPS);
                 if(ImGui::Button("Apply")){
                     ImGui::CloseCurrentPopup();
+                    appFps = newTargetFPS;
                     ofSetFrameRate(newTargetFPS);
 #ifdef ofxSA_NDI_SENDER_ENABLE
 #   if ofxSA_NDI_SENDER_LEADEDGE == 1
@@ -1572,12 +1571,36 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 #   ifdef ofxSA_TIMELINE_ENABLE
                 ImGui::Checkbox("Stop on loop", &bRecorderStopOnLoop);
                 const auto& tl = ofxSA_TIMELINE_GET(timeline);
-                ImGui::DragInt2("Frame range to record", &recordFrameRange[0], 1, -1, tl.getTotalFrames());
+                const auto& maxFrame = tl.getTotalFrames();
+                if(ImGui::DragInt2("Frame range to record", &recordFrameRange[0], 1, -1, maxFrame)){
+                    // Constrain values
+                    recordFrameRange[0] = glm::clamp(recordFrameRange[0], -1, (int)maxFrame);
+                    recordFrameRange[1] = glm::clamp(recordFrameRange[1], recordFrameRange[0], (int)maxFrame);
+                }
+                ImGui::Text("Set Start to : ");
+                ImGui::SameLine();
+                if(ImGui::SmallButton("current##start_current")){
+                    recordFrameRange[0] = tl.getFrameNum();
+                }
+                ImGui::SameLine();
+                if(ImGui::SmallButton("begin##start_begin")){
+                    recordFrameRange[0] = 0;
+                }
+                ImGui::Text("Set End to : ");
+                ImGui::SameLine();
+                if(ImGui::SmallButton("current##end_current")){
+                    recordFrameRange[1] = tl.getFrameNum();
+                }
+                ImGui::SameLine();
+                if(ImGui::SmallButton("end##end_end")){
+                    recordFrameRange[1] = maxFrame;
+                }
+                
                 const unsigned int fromRec = recordFrameRange[0]>0 ? recordFrameRange[0] : 0;
-                const unsigned int toRec = recordFrameRange[1]>0 ? recordFrameRange[1] : tl.getTotalFrames();
-                ImGui::TextDisabled("Record Start : %fs", fromRec*(1.f/tl.getFps()));
-                ImGui::TextDisabled("Record End   : %fs", toRec*(1.f/tl.getFps()));
-                ImGui::TextDisabled("Record Length: %fs", (toRec-fromRec)*(1.f/tl.getFps()));
+                const unsigned int toRec = recordFrameRange[1]>=0 ? recordFrameRange[1] : tl.getTotalFrames();
+                ImGui::TextDisabled("Record Start : %.4fs", fromRec*(1.f/tl.getFps()));
+                ImGui::TextDisabled("Record End   : %.4fs", toRec*(1.f/tl.getFps()));
+                ImGui::TextDisabled("Record Length: %.4fs %s", (toRec-fromRec)*(1.f/tl.getFps()), ((recordFrameRange[0]==recordFrameRange[1]) && (recordFrameRange[0]!=-1))?" (screenshot)":"");
 #   else
                 const float frameTime = 1.f/ofGetTargetFrameRate();
                 ImGui::DragFloat("Seconds to record", &recordLengthSeconds, frameTime, 0.f, 60*60*24.f, "%.3f sec");
@@ -1612,6 +1635,21 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
 
                     ImGui::SeparatorText("PNG Settings");
                     ImGui::Checkbox("Threaded recording", &bThreadedRecording); // threaded is only for PNG
+
+                    // Screenshot
+                    if(ImGui::Button("Screenshot")){
+                        recordFrameRange[0]=recordFrameRange[1];
+                        startRecordingCanvas();
+                    }
+                    ImGui::SameLine();
+                    if(ImGui::Button("Screenshot @current frame")){
+#       ifdef ofxSA_TIMELINE_ENABLE
+                        recordFrameRange[0]=recordFrameRange[1]=tl.getFrameNum();
+#       else
+                        recordFrameRange[0]=recordFrameRange[1]=frameTime; // untested
+#       endif
+                        startRecordingCanvas();
+                    }
                 }
                 else if(texRecorderMode==TexRecorderMode_FFMPEG){
                     ImGui::SeparatorText("FFMPEG Settings");
@@ -2453,6 +2491,10 @@ void ofxSimpleApp::setCurrentDocument(std::string document){
 #endif // ofxSA_XML_ENGINE_PUGIXML
 }
 
+int ofxSimpleApp::getFps() const {
+    return appFps;
+};
+
 // Xml settings from the ofxXml object
 bool ofxSimpleApp::loadXmlSettings(std::string _fileName, const bool bSetAsCurrentDoc){
     if(_fileName.empty()) _fileName = saveName;
@@ -2612,6 +2654,9 @@ bool ofxSimpleApp::ofxSA_populateXmlSettings(pugi::xml_node& _node){
     // App name, just for info
     _node.append_child("app_name").text().set(ofxSA_APP_NAME);
 
+    // Fps
+    _node.append_child("app_fps").text().set(appFps);
+
     // Theme
     _node.append_child("gui_theme").text().set(themeID);
 
@@ -2742,6 +2787,10 @@ bool ofxSimpleApp::ofxSA_retrieveXmlSettings(pugi::xml_node& _node){
         ofLogWarning("ofxSimpleApp::ofxSA_retrieveXmlSettings") << "Loaded XML file was made using an older version ("<<vMaj<<"."<<vMin<<"."<<vPatch<<"). Runtime version = "<<ofxSA_APP_VERSION_MAJOR<<"."<<ofxSA_APP_VERSION_MINOR<<"."<<ofxSA_APP_VERSION_PATCH<<".";
         // Todo: increment save file, load new one not to overwrite old version ?
     }
+
+    // Fps
+    appFps = _node.child("app_fps").text().as_int(ofxSA_FPS_CAP);
+    ofSetFrameRate(appFps);
 
     // Grab theme
     themeID = _node.child("gui_theme").text().as_int(ofxSA_GUI_THEME_DEFAULT);
