@@ -2401,7 +2401,7 @@ pugi::xml_document ofxSimpleApp::getGlobalSaveDoc() const{
         pugi::xml_parse_result result = doc.load_file(globalPath.c_str());
 
         if(!result){
-            ofLogWarning("ofxSimpleApp::getGlobalSaveDoc()") << "Pugi error loading the existing global settings file `" ofxSA_GLOBAL_XML_FILENAME "`. Error=" << result.description();
+            ofLogWarning("ofxSimpleApp::getGlobalSaveDoc()") << "Pugi error loading the existing global settings file `" ofxSA_GLOBAL_XML_FILENAME "`. Error=" << result.description() << " @ " << result.offset;
         }
     }
     return doc;
@@ -2513,7 +2513,7 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName, const bool bSetAsCurre
     pugi::xml_parse_result result = doc.load_file(ofToDataPath(path, true).c_str());
     bool loaded = false;
     if(!result){
-        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Pugi error loading the document `"<< path << "`. Error=" << result.description();
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Pugi error loading the document `"<< path << "`. Error @ char #" << result.offset << " = " << result.description() << "\n" << "In SublimeText, open the xml file and `Goto Anything` (CTRL+G) then type `::" << result.offset << "` to locate the issue.";
         loaded = false;
     }
     else loaded = true;
