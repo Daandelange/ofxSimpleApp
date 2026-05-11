@@ -2510,10 +2510,27 @@ bool ofxSimpleApp::loadXmlSettings(std::string _fileName, const bool bSetAsCurre
     // Load string buffer
 #if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
     pugi::xml_document doc;
-    pugi::xml_parse_result result = doc.load_file(ofToDataPath(path, true).c_str());
+    std::string absPath = ofToDataPath(path, true);
+    pugi::xml_parse_result result = doc.load_file(absPath.c_str());
     bool loaded = false;
     if(!result){
-        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Pugi error loading the document `"<< path << "`. Error @ char #" << result.offset << " = " << result.description() << "\n" << "In SublimeText, open the xml file and `Goto Anything` (CTRL+G) then type `::" << result.offset << "` to locate the issue.";
+        ofLogWarning("ofxSimpleApp::loadXmlSettings()") << "Pugi error loading the document `"<< path << "`. Error @ char #" << result.offset << " = " << result.description();
+        // << "\n" << "In SublimeText, open the xml file and `Goto Anything` (CTRL+G) then type `::" << result.offset << "` to locate the issue.";
+        
+#if 1 // Print XML error zone
+        // Read file to buf & seek
+        std::ifstream file(absPath.c_str(), std::ios::binary);
+        constexpr std::size_t context = 64;
+        std::size_t start = (result.offset > context) ? (result.offset - context) : 0;
+        file.seekg(start);
+        std::vector<char> buffer(context * 2);
+        file.read(buffer.data(), buffer.size());
+        std::size_t bytesRead = file.gcount();
+
+        // Log
+        ofLogNotice("ofxSimpleApp::loadXmlSettings()") << "Error part : " << std::string(buffer.data(), bytesRead);
+#endif // xml error zone
+
         loaded = false;
     }
     else loaded = true;
