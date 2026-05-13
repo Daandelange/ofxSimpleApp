@@ -1322,6 +1322,7 @@ void ofxSimpleApp::ImGuiDrawMenuBar(){
             if(reloadFolder){
                 saveDir.allowExt("xml");
                 saveDir.listDir(savePath);
+                saveDir.sort(ofDirectory::SORT_NATURAL);
                 reloadFolder=false;
                 checkNewFileName=true;
             }
