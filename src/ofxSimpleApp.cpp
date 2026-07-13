@@ -2154,7 +2154,9 @@ ImGui::Separator();
 
                 // Runtime
                 if( ImGui::BeginTabItem("Runtime") ){
-
+                    ImGui::SeparatorText("Application");
+                    ImGui::Text("Window resolution : %i x %i (ratio %.2f)", ofGetWindowWidth(), ofGetWindowHeight(), (((float)ofGetWindowWidth())/ofGetWindowHeight()) );
+                    ImGui::Text("Uptime            : %.1f seconds", ofGetElapsedTimef() );
 
                     // Monitor information
                     ImGui::SeparatorText("Displays");
