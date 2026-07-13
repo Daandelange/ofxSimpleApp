@@ -1,6 +1,9 @@
 #include "ofxSimpleAppCanvas.h"
 #include "GLFW/glfw3.h"
-#include "ofxPugiXMLHelpers.h"
+
+#if ofxSA_XML_ENGINE == ofxSA_XML_ENGINE_PUGIXML
+#   include "ofxPugiXMLHelpers.h"
+#endif
 
 template<typename TYPE, int SIZE>
 const char* getItemFromPairArray(TYPE _mode, const std::pair<TYPE, const char*>(&map)[SIZE] ) {
