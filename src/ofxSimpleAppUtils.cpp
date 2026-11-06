@@ -272,7 +272,7 @@ namespace ImGuiEx {
             }
             else if(ImGui::IsItemActive()){
                 ret = true; // Indicates an updated value while dragging (make this optional)
-                vec = fromValue + (ImGui::GetMousePos() - mousePos);
+                vec = fromValue + VEC2_T(ImGui::GetMousePos() - mousePos);
             }
         }
         else if(ImGui::IsItemClicked()){

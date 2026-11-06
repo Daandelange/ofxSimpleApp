@@ -28,9 +28,10 @@ we need to have them defined at here at compile time.
 
 //#include "imgui_internal.h"
 // from imgui_internals.h
-static inline ImVec4 ImLerp_spec(const ImVec4& a, const ImVec4& b, float t)          { return ImVec4(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, a.w + (b.w - a.w) * t); }
-static inline ImVec4 operator*(const ImVec4& lhs, const ImVec4& rhs)            { return ImVec4(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w); }
-
+static inline ImVec4 ImLerp_spec(const ImVec4& a, const ImVec4& b, float t) { return ImVec4(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, a.w + (b.w - a.w) * t); }
+#ifndef IMGUI_DEFINE_MATH_OPERATORS_IMPLEMENTED
+static inline ImVec4 operator*(const ImVec4& lhs, const ImVec4& rhs) { return ImVec4(lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z, lhs.w * rhs.w); }
+#endif
 
 using namespace ImGui;
 
@@ -228,10 +229,10 @@ class Spectrum : public ofxImGui::BaseTheme {
 
         // Set some colors compatible with new theme variables for easier updating
         //ofColor col_main_text = ColorConvertU32ToFloat4(GRAY800);
-        ofColor col_main_head = ColorConvertU32ToFloat4(GRAY300);
-        ofColor col_main_area = ColorConvertU32ToFloat4(GRAY200);
+        ofColor col_main_head = (ofColor)ColorConvertU32ToFloat4(GRAY300);
+        ofColor col_main_area = (ofColor)ColorConvertU32ToFloat4(GRAY200);
         //ofColor col_win_popup = ColorConvertU32ToFloat4(GRAY100);
-        ofColor col_win_backg = ColorConvertU32ToFloat4(GRAY50);
+        ofColor col_win_backg = (ofColor)ColorConvertU32ToFloat4(GRAY50);
 
         style.FrameRounding = 4.0f;
         style.GrabRounding = 4.0f;
@@ -293,9 +294,9 @@ class Spectrum : public ofxImGui::BaseTheme {
 
         style.Colors[ImGuiCol_Tab]                     = ImVec4(col_main_area, 0.9f); // ImLerp_spec(colors[ImGuiCol_Header],       colors[ImGuiCol_TitleBgActive], 0.80f)
         style.Colors[ImGuiCol_TabHovered]              = ImVec4(col_main_head, 0.5f);
-        style.Colors[ImGuiCol_TabSelected]               = ImVec4(col_main_head, 0.7f);
-        style.Colors[ImGuiCol_TabDimmed]            = ImLerp_spec(style.Colors[ImGuiCol_Tab],       style.Colors[ImGuiCol_TitleBg], 0.80f);
-        style.Colors[ImGuiCol_TabDimmedSelected]      = ImLerp_spec(style.Colors[ImGuiCol_TabSelected], style.Colors[ImGuiCol_TitleBg], 0.40f);
+        style.Colors[ImGuiCol_TabSelected]             = ImVec4(col_main_head, 0.7f);
+        style.Colors[ImGuiCol_TabDimmed]               = ImLerp_spec(style.Colors[ImGuiCol_Tab],       style.Colors[ImGuiCol_TitleBg], 0.80f);
+        style.Colors[ImGuiCol_TabDimmedSelected]       = ImLerp_spec(style.Colors[ImGuiCol_TabSelected], style.Colors[ImGuiCol_TitleBg], 0.40f);
 
         style.Colors[ImGuiCol_DockingPreview]          = style.Colors[ImGuiCol_HeaderActive] * ImVec4(1.0f, 1.0f, 1.0f, 0.7f);
         style.Colors[ImGuiCol_DockingEmptyBg]          = ImVec4(col_win_backg, 0.8f);
